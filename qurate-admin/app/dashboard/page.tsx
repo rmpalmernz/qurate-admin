@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { SUPABASE_FUNCTIONS_URL } from '@/lib/supabase'
 
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -82,7 +82,7 @@ function emailToQuadrant(email: Email): 'do' | 'schedule' | 'delegate' | 'elimin
 }
 
 function emailCategory(email: Email): 'vip' | 'partner' | 'tools' | 'other' {
-  const addr = email.from.address.toLowerCase()
+  const addr = (email.from?.address || '').toLowerCase()
   const cn   = email.ai_client_name || ''
   if (VIP_CLIENTS.some(c => cn.toLowerCase().includes(c.toLowerCase())) || VIP_DOMAINS.some(d => addr.includes(d))) return 'vip'
   if (addr.includes('noreply') || addr.includes('no-reply') || addr.includes('notifications') ||
@@ -228,7 +228,7 @@ function BriefingTab({ events, tasks, emails }: { events: CalendarEvent[]; tasks
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {todayEvts.map(e => (
                 <div key={e.id} style={{ display: 'flex', gap: 14, padding: '10px 12px', background: '#22263a', borderRadius: 8 }}>
-                  <div style={{ minWidth: 68, color: '#3AAFA9', fontSize: 12, fontWeight: 600, paddingTop: 2 }}>{(e.isAllDay || !e.start.dateTime) ? 'All day' : fmt(e.start.dateTime)}</div>
+                  <div style={{ minWidth: 68, color: '#3AAFA9', fontSize: 12, fontWeight: 600, paddingTop: 2 }}>{(e.isAllDay || !e.start?.dateTime) ? 'All day' : fmt(e.start.dateTime!)}</div>
                   <div>
                     <div style={{ fontWeight: 500, color: '#e8eaf0', fontSize: 14, marginBottom: 2 }}>{e.subject}</div>
                     {e.location?.displayName && <div style={{ color: '#6b7280', fontSize: 12 }}>@ {e.location.displayName}</div>}
@@ -345,7 +345,7 @@ function EmailTab({ emails, loading, onRefresh }: { emails: Email[]; loading: bo
   async function sendEmail() {
     if (!msToken) { alert('No Microsoft token — please reconnect.'); return }
     setSending(true)
-    const toAddr = selected ? selected.from.address : composeTo
+    const toAddr = selected ? (selected.from?.address || '') : composeTo
     const subj   = selected ? `Re: ${selected.subject}` : composeSubj
     const body   = draft || composeBody
     try {
@@ -420,7 +420,7 @@ function EmailTab({ emails, loading, onRefresh }: { emails: Email[]; loading: bo
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 3 }}>
                 <div style={{ display: 'flex', gap: 7, alignItems: 'center', flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
                   {!email.isRead && <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3AAFA9', flexShrink: 0 }} />}
-                  <span style={{ fontWeight: email.isRead ? 400 : 600, fontSize: 13, color: '#e8eaf0' }}>{email.from.name}</span>
+                  <span style={{ fontWeight: email.isRead ? 400 : 600, fontSize: 13, color: '#e8eaf0' }}>{email.from?.name || email.from?.address || 'Unknown sender'}</span>
                   <QuadrantBadge quadrant={q} />
                   {email.ai_client_name && <Badge text={email.ai_client_name} color="#3AAFA9" />}
                 </div>
@@ -444,7 +444,7 @@ function EmailTab({ emails, loading, onRefresh }: { emails: Email[]; loading: bo
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14, gap: 12 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <h3 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 600, color: '#e8eaf0', lineHeight: 1.4 }}>{selected.subject}</h3>
-              <p style={{ margin: 0, fontSize: 12, color: '#6b7280' }}>From: {selected.from.name} &lt;{selected.from.address}&gt;</p>
+              <p style={{ margin: 0, fontSize: 12, color: '#6b7280' }}>From: {selected.from?.name || 'Unknown'} {selected.from?.address ? `<${selected.from.address}>` : ''}</p>
               <p style={{ margin: '3px 0 0', fontSize: 11, color: '#3d4258' }}>{new Date(selected.receivedDateTime).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
             </div>
             <button onClick={() => { setSelected(null); setDraft('') }} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: 20, flexShrink: 0 }}>&#x2715;</button>
@@ -504,7 +504,7 @@ function EmailTab({ emails, loading, onRefresh }: { emails: Email[]; loading: bo
         <Modal title="Confirm Send" onClose={() => setSendConfirm(false)}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{ background: '#0f1117', border: '1px solid #2a2f45', borderRadius: 8, padding: 14 }}>
-              <p style={{ margin: '0 0 6px', fontSize: 12, color: '#6b7280' }}>To: <strong style={{ color: '#e8eaf0' }}>{selected ? selected.from.address : composeTo}</strong></p>
+              <p style={{ margin: '0 0 6px', fontSize: 12, color: '#6b7280' }}>To: <strong style={{ color: '#e8eaf0' }}>{selected ? (selected.from?.address || '') : composeTo}</strong></p>
               <p style={{ margin: '0 0 10px', fontSize: 12, color: '#6b7280' }}>Subject: <strong style={{ color: '#e8eaf0' }}>{selected ? `Re: ${selected.subject}` : composeSubj}</strong></p>
               <p style={{ margin: 0, fontSize: 13, color: '#b0b8cc', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{(draft || composeBody).slice(0, 300)}{(draft || composeBody).length > 300 ? '...' : ''}</p>
             </div>
@@ -662,10 +662,14 @@ function localDateKey(d: Date): string {
 
 // Helper: get a sortable Date from a calendar event (handles both timed + all-day)
 function evtStart(e: CalendarEvent): Date {
-  return e.start.dateTime ? new Date(e.start.dateTime) : new Date(e.start.date + 'T00:00:00')
+  if (e.start?.dateTime) return new Date(e.start.dateTime)
+  if (e.start?.date)     return new Date(e.start.date + 'T00:00:00')
+  return new Date(0)
 }
 function evtEnd(e: CalendarEvent): Date {
-  return e.end.dateTime ? new Date(e.end.dateTime) : new Date(e.end.date + 'T23:59:59')
+  if (e.end?.dateTime) return new Date(e.end.dateTime)
+  if (e.end?.date)     return new Date(e.end.date + 'T23:59:59')
+  return new Date(0)
 }
 
 function CalendarTab({ events }: { events: CalendarEvent[] }) {
@@ -733,7 +737,7 @@ function CalendarTab({ events }: { events: CalendarEvent[] }) {
                       <Card key={e.id} style={{ padding: '12px 14px' }}>
                         <div style={{ display: 'flex', gap: 14 }}>
                           <div style={{ minWidth: 90, color: '#3AAFA9', fontSize: 12, fontWeight: 600, paddingTop: 2, flexShrink: 0 }}>
-                            {(e.isAllDay || !e.start.dateTime) ? 'All day' : `${fmt(e.start.dateTime)} \u2013 ${fmt(e.end.dateTime!)}`}
+                            {(e.isAllDay || !e.start?.dateTime) ? 'All day' : `${fmt(e.start.dateTime!)} \u2013 ${fmt(e.end.dateTime ?? e.end.date ?? '')}`}
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontWeight: 500, color: '#e8eaf0', fontSize: 14, marginBottom: 3 }}>{e.subject}</div>
@@ -769,7 +773,7 @@ function CalendarTab({ events }: { events: CalendarEvent[] }) {
                     ? <p style={{ color: '#2a2f45', fontSize: 11, margin: 0, textAlign: 'center' }}>&#8212;</p>
                     : dayEvts.map(e => (
                         <div key={e.id} style={{ background: 'rgba(58,175,169,0.1)', borderLeft: '2px solid #3AAFA9', borderRadius: 4, padding: '3px 6px' }}>
-                          <div style={{ fontSize: 10, color: '#3AAFA9', fontWeight: 600 }}>{(e.isAllDay || !e.start.dateTime) ? 'All day' : fmt(e.start.dateTime)}</div>
+                          <div style={{ fontSize: 10, color: '#3AAFA9', fontWeight: 600 }}>{(e.isAllDay || !e.start?.dateTime) ? 'All day' : fmt(e.start.dateTime!)}</div>
                           <div style={{ fontSize: 11, color: '#c0c8d8', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.subject}</div>
                         </div>
                       ))}
@@ -789,7 +793,7 @@ function ClientsTab({ emails, tasks }: { emails: Email[]; tasks: EisenhowerTask[
     const domain       = VIP_DOMAINS[i]
     const clientEmails = emails.filter(e => {
       const cn   = (e.ai_client_name || '').toLowerCase()
-      const addr = e.from.address.toLowerCase()
+      const addr = (e.from?.address || '').toLowerCase()
       return cn.includes(name.toLowerCase()) || addr.includes(domain)
     })
     const clientTasks  = tasks.filter(t => (t.client_name || '').toLowerCase().includes(name.toLowerCase()))
@@ -851,7 +855,7 @@ function ClientsTab({ emails, tasks }: { emails: Email[]; tasks: EisenhowerTask[
 
             {c.lastEmail && (
               <div style={{ padding: '8px 10px', background: '#0f1117', borderRadius: 8 }}>
-                <p style={{ margin: '0 0 2px', fontSize: 11, color: '#6b7280' }}>{c.lastEmail.from.name}</p>
+                <p style={{ margin: '0 0 2px', fontSize: 11, color: '#6b7280' }}>{c.lastEmail.from?.name || c.lastEmail.from?.address || 'Unknown sender'}</p>
                 <p style={{ margin: 0, fontSize: 12, color: '#8892a4', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.lastEmail.subject}</p>
               </div>
             )}
@@ -893,7 +897,15 @@ function ChatTab() {
     setMessages(m => [...m, { role: 'user', content: userMsg }])
     setLoading(true)
     try {
-      const res = await authFetch(`${SUPABASE_FUNCTIONS_URL}/chat`, { method: 'POST', body: JSON.stringify({ message: userMsg, history: messages }) })
+      // Build full conversation array (Claude API format) — edge function expects `messages`
+      const conversationMessages = [
+        ...messages.filter(m => m.role === 'user' || m.role === 'assistant'),
+        { role: 'user' as const, content: userMsg },
+      ]
+      const res = await authFetch(`${SUPABASE_FUNCTIONS_URL}/chat`, {
+        method: 'POST',
+        body: JSON.stringify({ message: userMsg, messages: conversationMessages }),
+      })
       const data = await res.json()
       setMessages(m => [...m, { role: 'assistant', content: data.response || data.message || JSON.stringify(data) }])
     } catch {
@@ -1104,7 +1116,7 @@ export default function Dashboard() {
       if (!token) { setEmailLoading(false); return }
       const r = await fetch('https://graph.microsoft.com/v1.0/me/messages?$top=50&$orderby=receivedDateTime desc&$select=id,subject,from,receivedDateTime,bodyPreview,isRead', { headers: { Authorization: `Bearer ${token}` } })
       const data = await r.json()
-      if (data.value) setEmails(data.value)
+      if (data.value) setEmails(data.value.filter((e: Email) => e.from && e.id && e.receivedDateTime))
     } catch (e) { console.error('Email load error:', e) }
     setEmailLoading(false)
   }, [])
@@ -1144,10 +1156,12 @@ export default function Dashboard() {
 
   useEffect(() => { loadEmails(); loadCalendar(); loadTasks() }, [loadEmails, loadCalendar, loadTasks])
 
-  const unread       = emails.filter(e => !e.isRead).length
-  const todayEvtCount = events.filter(e => (e.start?.dateTime || e.start?.date) && localDateKey(evtStart(e)) === localDateKey(new Date())).length
-
-  const q1Count = tasks.filter(t => t.quadrant === 'do').length
+  const unread        = useMemo(() => emails.filter(e => !e.isRead).length, [emails])
+  const todayEvtCount = useMemo(() => {
+    const todayKey = localDateKey(new Date())
+    return events.filter(e => (e.start?.dateTime || e.start?.date) && localDateKey(evtStart(e)) === todayKey).length
+  }, [events])
+  const q1Count = useMemo(() => tasks.filter(t => t.quadrant === 'do').length, [tasks])
 
   const navItems: Array<{ key: Tab; label: string; badge?: number }> = [
     { key: 'briefing',  label: 'Brief' },

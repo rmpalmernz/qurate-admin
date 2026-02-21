@@ -66,8 +66,12 @@ body {
   font-weight: 500;
   padding: 8px 2px;
   position: relative;
-  transition: color 0.15s;
+  transition: color 0.1s;
   min-height: 56px;
+  /* Eliminate 300ms tap delay on mobile */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
 }
 
 .bottom-nav-item.active {
@@ -76,6 +80,13 @@ body {
 
 .bottom-nav-item:not(.active):hover {
   color: #9ca3af;
+}
+
+/* Instant press feedback — fires before React re-renders */
+.bottom-nav-item:active {
+  opacity: 0.6;
+  transform: scale(0.94);
+  transition: none;
 }
 
 /* Active indicator bar at top of nav item */
