@@ -870,6 +870,72 @@ function ClientsTab({ emails, tasks }: { emails: Email[]; tasks: EisenhowerTask[
   )
 }
 
+// ─── Markdown renderer ────────────────────────────────────────────────────────
+function renderMarkdown(text: string): string {
+  const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const inline = (s: string) =>
+    escape(s)
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/`(.+?)`/g, '<code style="background:#2a2f45;padding:1px 5px;border-radius:3px;font-size:12px">$1</code>')
+
+  const lines = text.split('\n')
+  const out: string[] = []
+  let i = 0
+
+  while (i < lines.length) {
+    const line = lines[i]
+
+    // Table block
+    if (line.trim().startsWith('|')) {
+      const tLines: string[] = []
+      while (i < lines.length && lines[i].trim().startsWith('|')) { tLines.push(lines[i]); i++ }
+      out.push('<table style="border-collapse:collapse;width:100%;margin:8px 0;font-size:13px">')
+      tLines.forEach((tl, ti) => {
+        if (ti === 1) return // separator row
+        const cells = tl.split('|').slice(1, -1)
+        const tag = ti === 0 ? 'th' : 'td'
+        const bg = ti === 0 ? '#22263a' : ti % 2 === 0 ? '#1e2235' : 'transparent'
+        out.push(`<tr style="background:${bg}">`)
+        cells.forEach(c => out.push(`<${tag} style="padding:5px 10px;border:1px solid #2a2f45;text-align:left">${inline(c.trim())}</${tag}>`))
+        out.push('</tr>')
+      })
+      out.push('</table>')
+      continue
+    }
+
+    // Headings
+    if (line.startsWith('### ')) { out.push(`<h3 style="margin:10px 0 4px;font-size:13px;font-weight:600;color:#3AAFA9">${inline(line.slice(4))}</h3>`); i++; continue }
+    if (line.startsWith('## '))  { out.push(`<h2 style="margin:12px 0 5px;font-size:14px;font-weight:600;color:#3AAFA9">${inline(line.slice(3))}</h2>`); i++; continue }
+    if (line.startsWith('# '))   { out.push(`<h1 style="margin:14px 0 6px;font-size:15px;font-weight:700;color:#3AAFA9">${inline(line.slice(2))}</h1>`); i++; continue }
+
+    // Bullet list
+    if (/^[-*] /.test(line)) {
+      out.push('<ul style="margin:4px 0;padding-left:18px">')
+      while (i < lines.length && /^[-*] /.test(lines[i])) { out.push(`<li style="margin:2px 0">${inline(lines[i].slice(2))}</li>`); i++ }
+      out.push('</ul>')
+      continue
+    }
+
+    // Numbered list
+    if (/^\d+\. /.test(line)) {
+      out.push('<ol style="margin:4px 0;padding-left:18px">')
+      while (i < lines.length && /^\d+\. /.test(lines[i])) { out.push(`<li style="margin:2px 0">${inline(lines[i].replace(/^\d+\. /, ''))}</li>`); i++ }
+      out.push('</ol>')
+      continue
+    }
+
+    // Blank line
+    if (line.trim() === '') { i++; continue }
+
+    // Paragraph
+    out.push(`<p style="margin:3px 0">${inline(line)}</p>`)
+    i++
+  }
+
+  return out.join('')
+}
+
 // ─── CHAT TAB ─────────────────────────────────────────────────────────────────
 function ChatTab() {
   const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([
@@ -928,9 +994,16 @@ function ChatTab() {
       <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 16 }}>
         {messages.map((m, i) => (
           <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
-            <div style={{ maxWidth: '75%', padding: '10px 14px', borderRadius: m.role === 'user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px', background: m.role === 'user' ? 'linear-gradient(135deg, #3AAFA9, #2E9E98)' : '#1a1d27', border: m.role === 'assistant' ? '1px solid #2a2f45' : 'none', color: '#e8eaf0', fontSize: 14, lineHeight: 1.6 }}>
-              {m.content}
-            </div>
+            {m.role === 'user' ? (
+              <div style={{ maxWidth: '75%', padding: '10px 14px', borderRadius: '12px 12px 4px 12px', background: 'linear-gradient(135deg, #3AAFA9, #2E9E98)', color: '#e8eaf0', fontSize: 14, lineHeight: 1.6 }}>
+                {m.content}
+              </div>
+            ) : (
+              <div
+                dangerouslySetInnerHTML={{ __html: renderMarkdown(m.content) }}
+                style={{ maxWidth: '85%', padding: '10px 14px', borderRadius: '12px 12px 12px 4px', background: '#1a1d27', border: '1px solid #2a2f45', color: '#e8eaf0', fontSize: 14, lineHeight: 1.6 }}
+              />
+            )}
           </div>
         ))}
         {loading && (
