@@ -202,3 +202,37 @@ body {
     height: calc(100svh - 56px - 56px - 60px - 24px);
   }
 }
+
+/* ── Global modal — bottom sheet on mobile, centred dialog on desktop ────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.72);
+  display: flex;
+  align-items: flex-end;   /* mobile: rises from bottom */
+  justify-content: center;
+  z-index: 1000;
+  padding: 0;
+}
+.modal-sheet {
+  background: #1a1d27;
+  border: 1px solid #2a2f45;
+  border-radius: 20px 20px 0 0;
+  padding: 0 24px 28px;
+  width: 100%;
+  max-height: 92vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.modal-handle {
+  width: 40px;
+  height: 4px;
+  background: #2a2f45;
+  border-radius: 2px;
+  margin: 12px auto 20px;
+}
+@media (min-width: 769px) {
+  .modal-overlay { align-items: center; padding: 24px; }
+  .modal-sheet   { border-radius: 16px; max-width: 560px; max-height: 90vh; padding: 28px; }
+  .modal-handle  { display: none; }
+}

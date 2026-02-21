@@ -151,11 +151,12 @@ function Spinner() {
 
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 24 }} onClick={onClose}>
-      <div style={{ background: '#1a1d27', border: '1px solid #2a2f45', borderRadius: 16, padding: 28, maxWidth: 560, width: '100%', maxHeight: '90vh', overflow: 'auto' }} onClick={e => e.stopPropagation()}>
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-sheet" onClick={e => e.stopPropagation()}>
+        <div className="modal-handle" />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#e8eaf0' }}>{title}</h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: 22, lineHeight: 1, padding: 0 }}>&#x2715;</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: 22, lineHeight: 1, padding: 0, touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>&#x2715;</button>
         </div>
         {children}
       </div>
@@ -809,18 +810,25 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
                 {qTasks.length === 0 ? <p style={{ color: '#3d4258', fontSize: 12, margin: 0 }}>No tasks</p> : qTasks.map(t => (
                   <div key={t.id} style={{ background: '#1a1d27', border: '1px solid #2a2f45', borderRadius: 8, padding: '8px 10px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                      <p style={{ margin: '0 0 2px', fontSize: 13, color: '#e8eaf0', fontWeight: 500, flex: 1 }}>{t.title}</p>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 3 }}>
+                          <span style={{ fontSize: 10, fontWeight: 800, padding: '1px 6px', borderRadius: 4, background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, flexShrink: 0 }}>
+                            {q === 'do' ? 'Q1' : q === 'schedule' ? 'Q2' : q === 'delegate' ? 'Q3' : 'Q4'}
+                          </span>
+                          {t.client_name && <span style={{ fontSize: 11, color: '#3AAFA9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.client_name}</span>}
+                        </div>
+                        <p style={{ margin: '0 0 3px', fontSize: 13, color: '#e8eaf0', fontWeight: 500 }}>{t.title}</p>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          {t.due_date && <span style={{ fontSize: 11, color: '#6b7280' }}>{fmtDate(t.due_date)}</span>}
+                          {t.estimated_minutes && <span style={{ fontSize: 11, color: '#6b7280' }}>{t.estimated_minutes}m</span>}
+                        </div>
+                      </div>
                       <button
                         onClick={() => completeTask(t.id)}
                         disabled={completing === t.id}
                         title="Mark complete"
-                        style={{ width: 22, height: 22, borderRadius: '50%', border: `1.5px solid ${cfg.color}`, background: 'transparent', color: cfg.color, cursor: completing === t.id ? 'not-allowed' : 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, opacity: completing === t.id ? 0.5 : 1, padding: 0 }}
+                        style={{ width: 22, height: 22, borderRadius: '50%', border: `1.5px solid ${cfg.color}`, background: 'transparent', color: cfg.color, cursor: completing === t.id ? 'not-allowed' : 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, opacity: completing === t.id ? 0.5 : 1, padding: 0, touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
                       >&#10003;</button>
-                    </div>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      {t.client_name && <span style={{ fontSize: 11, color: '#3AAFA9' }}>{t.client_name}</span>}
-                      {t.due_date && <span style={{ fontSize: 11, color: '#6b7280' }}>{fmtDate(t.due_date)}</span>}
-                      {t.estimated_minutes && <span style={{ fontSize: 11, color: '#6b7280' }}>{t.estimated_minutes}m</span>}
                     </div>
                   </div>
                 ))}
@@ -863,46 +871,69 @@ function localDateKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-// Helper: get a sortable Date from a calendar event (handles both timed + all-day)
+// Helper: get a sortable Date from a calendar event.
+// MS Graph returns dateTime without a timezone suffix when Prefer:UTC is set,
+// which causes JS to interpret it as LOCAL time — wrong for AEDT users.
+// We always force UTC by appending 'Z' if no offset/Z is present.
+function toUTC(dt: string): Date {
+  return new Date(/[Z+\-]\d{2}:\d{2}$/.test(dt) || dt.endsWith('Z') ? dt : dt + 'Z')
+}
 function evtStart(e: CalendarEvent): Date {
-  if (e.start?.dateTime) return new Date(e.start.dateTime)
-  if (e.start?.date)     return new Date(e.start.date + 'T00:00:00')
+  if (e.start?.dateTime) return toUTC(e.start.dateTime)
+  if (e.start?.date)     return new Date(e.start.date + 'T00:00:00')   // all-day → local midnight
   return new Date(0)
 }
 function evtEnd(e: CalendarEvent): Date {
-  if (e.end?.dateTime) return new Date(e.end.dateTime)
+  if (e.end?.dateTime) return toUTC(e.end.dateTime)
   if (e.end?.date)     return new Date(e.end.date + 'T23:59:59')
   return new Date(0)
 }
 
-function CalendarTab({ events }: { events: CalendarEvent[] }) {
-  const [view, setView] = useState<'agenda'|'week'>('agenda')
+function CalendarTab({ events, tasks }: { events: CalendarEvent[]; tasks: EisenhowerTask[] }) {
+  const [view, setView]       = useState<'agenda'|'week'>('agenda')
+  const [selected, setSelected] = useState<{ type: 'event'; data: CalendarEvent } | { type: 'task'; data: EisenhowerTask } | null>(null)
+  const [isMobile, setIsMobile] = useState(false)
 
-  const now       = new Date()
-  const todayKey  = localDateKey(now)
-  const tomorrow  = new Date(now); tomorrow.setDate(now.getDate() + 1)
-  const tmrwKey   = localDateKey(tomorrow)
-  const todayMid  = new Date(now); todayMid.setHours(0, 0, 0, 0)
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth <= 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
-  // Upcoming events sorted by start time (includes all-day events)
-  const upcoming = [...events]
+  const now      = new Date()
+  const todayKey = localDateKey(now)
+  const tmrwKey  = localDateKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1))
+  const todayMid = new Date(now); todayMid.setHours(0, 0, 0, 0)
+
+  // Build day groups: events + tasks together, sorted by date
+  type DayGroup = { label: string; isToday: boolean; events: CalendarEvent[]; tasks: EisenhowerTask[] }
+  const byDay: Record<string, DayGroup> = {}
+
+  const mkGroup = (key: string): DayGroup => {
+    const isToday = key === todayKey
+    const isTmrw  = key === tmrwKey
+    const d = new Date(key + 'T00:00:00')
+    const label = isToday ? 'Today' : isTmrw ? 'Tomorrow' : d.toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric' })
+    return { label, isToday, events: [], tasks: [] }
+  }
+
+  ;[...events]
     .filter(e => (e.start?.dateTime || e.start?.date) && evtEnd(e).getTime() >= todayMid.getTime())
     .sort((a, b) => evtStart(a).getTime() - evtStart(b).getTime())
+    .forEach(e => {
+      const key = localDateKey(evtStart(e))
+      if (!byDay[key]) byDay[key] = mkGroup(key)
+      byDay[key].events.push(e)
+    })
 
-  // Group events by local YYYY-MM-DD key (no re-parsing needed)
-  type DayGroup = { label: string; isToday: boolean; events: CalendarEvent[] }
-  const byDay: Record<string, DayGroup> = {}
-  upcoming.forEach(e => {
-    const d   = evtStart(e)
-    const key = localDateKey(d)
-    if (!byDay[key]) {
-      const isToday    = key === todayKey
-      const isTomorrow = key === tmrwKey
-      const label      = isToday ? 'Today' : isTomorrow ? 'Tomorrow' : d.toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric' })
-      byDay[key] = { label, isToday, events: [] }
-    }
-    byDay[key].events.push(e)
+  tasks.filter(t => t.due_date).forEach(t => {
+    const key = t.due_date!
+    if (!byDay[key]) byDay[key] = mkGroup(key)
+    byDay[key].tasks.push(t)
   })
+
+  const sortedDays = Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b))
 
   // Mon–Sun for current week
   const weekDays = (() => {
@@ -911,81 +942,238 @@ function CalendarTab({ events }: { events: CalendarEvent[] }) {
     return Array.from({ length: 7 }, (_, i) => { const x = new Date(mon); x.setDate(mon.getDate() + i); return x })
   })()
 
-  const viewToggleBtn = (v: 'agenda'|'week', label: string) => (
-    <button key={v} onClick={() => setView(v)} style={{ padding: '5px 14px', borderRadius: 6, border: 'none', fontSize: 12, background: view === v ? 'rgba(58,175,169,0.15)' : 'transparent', color: view === v ? '#3AAFA9' : '#6b7280', fontWeight: view === v ? 600 : 400, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>{label}</button>
+  // ── Detail renderers ──────────────────────────────────────────────────────
+  function renderEventDetail(e: CalendarEvent) {
+    const isAllDay = e.isAllDay || !e.start?.dateTime
+    return (
+      <>
+        <h3 style={{ margin: '0 0 16px', fontSize: 17, fontWeight: 600, color: '#e8eaf0', lineHeight: 1.4 }}>{e.subject}</h3>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '12px 14px', background: 'rgba(58,175,169,0.06)', border: '1px solid rgba(58,175,169,0.15)', borderRadius: 10, marginBottom: 10 }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3AAFA9" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0, marginTop: 1 }}><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          <div>
+            <p style={{ margin: '0 0 3px', fontSize: 14, color: '#e8eaf0', fontWeight: 500 }}>
+              {isAllDay ? 'All Day' : `${fmt(e.start.dateTime!)} – ${fmt(e.end?.dateTime ?? '')}`}
+            </p>
+            <p style={{ margin: 0, fontSize: 12, color: '#6b7280' }}>
+              {evtStart(e).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            </p>
+          </div>
+        </div>
+        {e.location?.displayName && (
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 14px', background: '#22263a', borderRadius: 10, marginBottom: 10 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
+            <span style={{ fontSize: 13, color: '#c0c8d8' }}>{e.location.displayName}</span>
+          </div>
+        )}
+        {e.organizer?.emailAddress?.name && (
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 14px', background: '#22263a', borderRadius: 10, marginBottom: 10 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+            <span style={{ fontSize: 13, color: '#c0c8d8' }}>{e.organizer.emailAddress.name}</span>
+          </div>
+        )}
+        {e.bodyPreview && (
+          <div style={{ background: '#22263a', border: '1px solid #2a2f45', borderRadius: 10, padding: '12px 14px' }}>
+            <p style={{ margin: '0 0 6px', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Description</p>
+            <p style={{ margin: 0, fontSize: 13, color: '#b0b8cc', lineHeight: 1.6 }}>{e.bodyPreview}</p>
+          </div>
+        )}
+      </>
+    )
+  }
+
+  function renderTaskDetail(t: EisenhowerTask) {
+    const qCfg = quadrantConfig[t.quadrant]
+    const qLabel = t.quadrant === 'do' ? 'Q1' : t.quadrant === 'schedule' ? 'Q2' : t.quadrant === 'delegate' ? 'Q3' : 'Q4'
+    return (
+      <>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: qCfg.bg, color: qCfg.color, border: `1px solid ${qCfg.border}` }}>{qLabel} — {qCfg.label}</span>
+          {t.client_name && <Badge text={t.client_name} color="#3AAFA9" />}
+        </div>
+        <h3 style={{ margin: '0 0 16px', fontSize: 17, fontWeight: 600, color: '#e8eaf0', lineHeight: 1.4 }}>{t.title}</h3>
+        {t.due_date && (
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 14px', background: qCfg.bg, border: `1px solid ${qCfg.border}`, borderRadius: 10, marginBottom: 10 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={qCfg.color} strokeWidth="2" strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>
+            <span style={{ fontSize: 13, color: '#e8eaf0' }}>Due {fmtDate(t.due_date)}</span>
+          </div>
+        )}
+        {t.estimated_minutes && (
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 14px', background: '#22263a', borderRadius: 10, marginBottom: 10 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            <span style={{ fontSize: 13, color: '#c0c8d8' }}>Est. {t.estimated_minutes} min</span>
+          </div>
+        )}
+        {t.notes && (
+          <div style={{ background: '#22263a', border: '1px solid #2a2f45', borderRadius: 10, padding: '12px 14px' }}>
+            <p style={{ margin: '0 0 6px', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Notes</p>
+            <p style={{ margin: 0, fontSize: 13, color: '#b0b8cc', lineHeight: 1.6 }}>{t.notes}</p>
+          </div>
+        )}
+      </>
+    )
+  }
+
+  const detailContent = selected
+    ? (selected.type === 'event' ? renderEventDetail(selected.data) : renderTaskDetail(selected.data))
+    : null
+
+  const viewBtn = (v: 'agenda'|'week', label: string) => (
+    <button key={v} onClick={() => setView(v)} style={{ padding: '5px 14px', borderRadius: 6, border: 'none', fontSize: 12, background: view === v ? 'rgba(58,175,169,0.15)' : 'transparent', color: view === v ? '#3AAFA9' : '#6b7280', fontWeight: view === v ? 600 : 400, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>{label}</button>
   )
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#e8eaf0' }}>Calendar</h3>
-        <div style={{ display: 'flex', gap: 2, background: '#1a1d27', border: '1px solid #2a2f45', borderRadius: 8, padding: 3 }}>
-          {viewToggleBtn('agenda', 'Agenda')}
-          {viewToggleBtn('week', 'Week')}
+    <div style={{ position: 'relative' }}>
+      <div className={selected && !isMobile ? 'email-grid email-grid--split' : 'email-grid'} style={{ gap: 16, alignItems: 'start' }}>
+
+        {/* ── List column ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#e8eaf0' }}>Calendar</h3>
+            <div style={{ display: 'flex', gap: 2, background: '#1a1d27', border: '1px solid #2a2f45', borderRadius: 8, padding: 3 }}>
+              {viewBtn('agenda', 'Agenda')}
+              {viewBtn('week', 'Week')}
+            </div>
+          </div>
+
+          {/* ── Agenda view ── */}
+          {view === 'agenda' && (
+            sortedDays.length === 0
+              ? <Card><p style={{ color: '#6b7280', margin: 0, fontSize: 13 }}>No upcoming events or tasks.</p></Card>
+              : <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {sortedDays.slice(0, 14).map(([key, group]) => (
+                    <div key={key} style={{ marginBottom: 8 }}>
+                      {/* Day header */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, paddingTop: 4 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: group.isToday ? '#3AAFA9' : '#6b7280', textTransform: 'uppercase', letterSpacing: '0.6px', whiteSpace: 'nowrap' }}>{group.label}</span>
+                        <div style={{ flex: 1, height: 1, background: '#2a2f45' }} />
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {/* Events */}
+                        {group.events.map(e => {
+                          const isAllDay = e.isAllDay || !e.start?.dateTime
+                          const sel = selected?.type === 'event' && selected.data.id === e.id
+                          return (
+                            <div key={e.id} onClick={() => setSelected(sel ? null : { type: 'event', data: e })}
+                              style={{ display: 'flex', background: sel ? '#22263a' : '#1a1d27', border: `1px solid ${sel ? '#3AAFA9' : '#2a2f45'}`, borderLeft: '3px solid #3AAFA9', borderRadius: 10, overflow: 'hidden', cursor: 'pointer', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>
+                              <div style={{ padding: '10px 12px', width: 68, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(58,175,169,0.06)', borderRight: '1px solid #2a2f45' }}>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: '#3AAFA9', textAlign: 'center', lineHeight: 1.3 }}>{isAllDay ? 'All\nDay' : fmt(e.start.dateTime!)}</span>
+                              </div>
+                              <div style={{ padding: '10px 12px', flex: 1, minWidth: 0 }}>
+                                <p style={{ margin: '0 0 3px', fontSize: 14, fontWeight: 500, color: '#e8eaf0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.subject}</p>
+                                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                  {e.location?.displayName && <span style={{ fontSize: 11, color: '#6b7280' }}>@ {e.location.displayName}</span>}
+                                  {e.organizer?.emailAddress?.name && <span style={{ fontSize: 11, color: '#6b7280' }}>{e.organizer.emailAddress.name}</span>}
+                                </div>
+                              </div>
+                              <div style={{ padding: '0 10px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#3d4258" strokeWidth="2.5" strokeLinecap="round"><path d="M9 18l6-6-6-6"/></svg>
+                              </div>
+                            </div>
+                          )
+                        })}
+                        {/* Tasks (with Q badge) */}
+                        {group.tasks.map(t => {
+                          const qCfg  = quadrantConfig[t.quadrant]
+                          const qLabel = t.quadrant === 'do' ? 'Q1' : t.quadrant === 'schedule' ? 'Q2' : t.quadrant === 'delegate' ? 'Q3' : 'Q4'
+                          const sel   = selected?.type === 'task' && selected.data.id === t.id
+                          return (
+                            <div key={t.id} onClick={() => setSelected(sel ? null : { type: 'task', data: t })}
+                              style={{ display: 'flex', background: sel ? '#22263a' : '#1a1d27', border: `1px solid ${sel ? qCfg.color : '#2a2f45'}`, borderLeft: `3px solid ${qCfg.color}`, borderRadius: 10, overflow: 'hidden', cursor: 'pointer', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>
+                              <div style={{ padding: '10px 12px', width: 68, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: qCfg.bg, borderRight: '1px solid #2a2f45' }}>
+                                <span style={{ fontSize: 13, fontWeight: 800, color: qCfg.color }}>{qLabel}</span>
+                                <span style={{ fontSize: 9, color: qCfg.color, opacity: 0.7, textTransform: 'uppercase', letterSpacing: '0.3px' }}>task</span>
+                              </div>
+                              <div style={{ padding: '10px 12px', flex: 1, minWidth: 0 }}>
+                                <p style={{ margin: '0 0 3px', fontSize: 14, fontWeight: 500, color: '#e8eaf0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</p>
+                                {t.client_name && <span style={{ fontSize: 11, color: '#3AAFA9' }}>{t.client_name}</span>}
+                              </div>
+                              <div style={{ padding: '0 10px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#3d4258" strokeWidth="2.5" strokeLinecap="round"><path d="M9 18l6-6-6-6"/></svg>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+          )}
+
+          {/* ── Week view ── */}
+          {view === 'week' && (
+            <div className="r-week-grid">
+              {weekDays.map(day => {
+                const dayKey  = localDateKey(day)
+                const isToday = dayKey === todayKey
+                const dayEvts = events.filter(e => (e.start?.dateTime || e.start?.date) && localDateKey(evtStart(e)) === dayKey).sort((a, b) => evtStart(a).getTime() - evtStart(b).getTime())
+                const dayTasks = tasks.filter(t => t.due_date === dayKey)
+                return (
+                  <div key={dayKey} style={{ background: isToday ? 'rgba(58,175,169,0.06)' : '#1a1d27', border: `1px solid ${isToday ? 'rgba(58,175,169,0.3)' : '#2a2f45'}`, borderRadius: 10, padding: '10px 8px', minHeight: 140 }}>
+                    <div style={{ textAlign: 'center', marginBottom: 10 }}>
+                      <div style={{ fontSize: 10, fontWeight: 600, color: isToday ? '#3AAFA9' : '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{day.toLocaleDateString('en-AU', { weekday: 'short' })}</div>
+                      <div style={{ fontSize: 18, fontWeight: 700, color: isToday ? '#3AAFA9' : '#e8eaf0', lineHeight: 1.3 }}>{day.getDate()}</div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {dayEvts.length === 0 && dayTasks.length === 0
+                        ? <p style={{ color: '#2a2f45', fontSize: 11, margin: 0, textAlign: 'center' }}>—</p>
+                        : <>
+                            {dayEvts.map(e => (
+                              <div key={e.id} onClick={() => setSelected({ type: 'event', data: e })} style={{ background: 'rgba(58,175,169,0.1)', borderLeft: '2px solid #3AAFA9', borderRadius: 4, padding: '3px 6px', cursor: 'pointer', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>
+                                <div style={{ fontSize: 10, color: '#3AAFA9', fontWeight: 600 }}>{(e.isAllDay || !e.start?.dateTime) ? 'All day' : fmt(e.start.dateTime!)}</div>
+                                <div style={{ fontSize: 11, color: '#c0c8d8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.subject}</div>
+                              </div>
+                            ))}
+                            {dayTasks.map(t => {
+                              const qCfg = quadrantConfig[t.quadrant]
+                              const qL   = t.quadrant === 'do' ? 'Q1' : t.quadrant === 'schedule' ? 'Q2' : t.quadrant === 'delegate' ? 'Q3' : 'Q4'
+                              return (
+                                <div key={t.id} onClick={() => setSelected({ type: 'task', data: t })} style={{ background: qCfg.bg, borderLeft: `2px solid ${qCfg.color}`, borderRadius: 4, padding: '3px 6px', cursor: 'pointer', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>
+                                  <div style={{ fontSize: 10, color: qCfg.color, fontWeight: 700 }}>{qL}</div>
+                                  <div style={{ fontSize: 11, color: '#c0c8d8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</div>
+                                </div>
+                              )
+                            })}
+                          </>
+                      }
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
+
+        {/* ── Desktop detail panel ── */}
+        {selected && !isMobile && (
+          <Card style={{ position: 'sticky', top: 72, alignSelf: 'start', maxHeight: 'calc(100vh - 96px)', overflow: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
+              <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: 20 }}>&#x2715;</button>
+            </div>
+            {detailContent}
+          </Card>
+        )}
       </div>
 
-      {view === 'agenda' ? (
-        upcoming.length === 0
-          ? <Card><p style={{ color: '#6b7280', margin: 0, fontSize: 13 }}>No upcoming events.</p></Card>
-          : <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {Object.entries(byDay).slice(0, 14).map(([key, group]) => (
-                <div key={key}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: group.isToday ? '#3AAFA9' : '#6b7280', textTransform: 'uppercase', letterSpacing: '0.6px' }}>{group.label}</span>
-                    <div style={{ flex: 1, height: 1, background: '#2a2f45' }} />
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {group.events.map(e => (
-                      <Card key={e.id} style={{ padding: '12px 14px' }}>
-                        <div style={{ display: 'flex', gap: 14 }}>
-                          <div style={{ minWidth: 90, color: '#3AAFA9', fontSize: 12, fontWeight: 600, paddingTop: 2, flexShrink: 0 }}>
-                            {(e.isAllDay || !e.start?.dateTime) ? 'All day' : `${fmt(e.start.dateTime!)} \u2013 ${fmt(e.end.dateTime ?? e.end.date ?? '')}`}
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontWeight: 500, color: '#e8eaf0', fontSize: 14, marginBottom: 3 }}>{e.subject}</div>
-                            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                              {e.location?.displayName && <span style={{ fontSize: 12, color: '#6b7280' }}>@ {e.location.displayName}</span>}
-                              {e.organizer?.emailAddress?.name && <span style={{ fontSize: 12, color: '#6b7280' }}>with {e.organizer.emailAddress.name}</span>}
-                            </div>
-                            {e.bodyPreview && <p style={{ margin: '5px 0 0', fontSize: 12, color: '#3d4258', lineHeight: 1.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.bodyPreview.slice(0, 140)}</p>}
-                          </div>
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-      ) : (
-        <div className="r-week-grid">
-          {weekDays.map(day => {
-            const dayKey  = localDateKey(day)
-            const isToday = dayKey === todayKey
-            const dayEvts = events
-              .filter(e => (e.start?.dateTime || e.start?.date) && localDateKey(evtStart(e)) === dayKey)
-              .sort((a, b) => evtStart(a).getTime() - evtStart(b).getTime())
-            return (
-              <div key={dayKey} style={{ background: isToday ? 'rgba(58,175,169,0.06)' : '#1a1d27', border: `1px solid ${isToday ? 'rgba(58,175,169,0.3)' : '#2a2f45'}`, borderRadius: 10, padding: '10px 8px', minHeight: 140 }}>
-                <div style={{ textAlign: 'center', marginBottom: 10 }}>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: isToday ? '#3AAFA9' : '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{day.toLocaleDateString('en-AU', { weekday: 'short' })}</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: isToday ? '#3AAFA9' : '#e8eaf0', lineHeight: 1.3 }}>{day.getDate()}</div>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  {dayEvts.length === 0
-                    ? <p style={{ color: '#2a2f45', fontSize: 11, margin: 0, textAlign: 'center' }}>&#8212;</p>
-                    : dayEvts.map(e => (
-                        <div key={e.id} style={{ background: 'rgba(58,175,169,0.1)', borderLeft: '2px solid #3AAFA9', borderRadius: 4, padding: '3px 6px' }}>
-                          <div style={{ fontSize: 10, color: '#3AAFA9', fontWeight: 600 }}>{(e.isAllDay || !e.start?.dateTime) ? 'All day' : fmt(e.start.dateTime!)}</div>
-                          <div style={{ fontSize: 11, color: '#c0c8d8', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.subject}</div>
-                        </div>
-                      ))}
-                </div>
-              </div>
-            )
-          })}
+      {/* ── Mobile: full-screen detail slide-in ── */}
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 300,
+        background: '#0f1117',
+        transform: (selected && isMobile) ? 'translateX(0)' : 'translateX(100%)',
+        transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1)',
+        display: 'flex', flexDirection: 'column',
+        overflow: 'hidden', touchAction: 'pan-y',
+        pointerEvents: (selected && isMobile) ? 'auto' : 'none',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', height: 56, padding: '0 16px', background: '#1a1d27', borderBottom: '1px solid #2a2f45', flexShrink: 0 }}>
+          <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: '#3AAFA9', fontSize: 17, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", display: 'flex', alignItems: 'center', gap: 4, padding: '8px 0', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>
+            ‹ Calendar
+          </button>
         </div>
-      )}
+        <div style={{ flex: 1, overflow: 'auto', padding: '20px 16px 40px', WebkitOverflowScrolling: 'touch' }}>
+          {detailContent}
+        </div>
+      </div>
     </div>
   )
 }
@@ -1410,7 +1598,7 @@ export default function Dashboard() {
         `?startDateTime=${start.toISOString()}&endDateTime=${end.toISOString()}` +
         `&$select=id,subject,start,end,location,organizer,bodyPreview,isAllDay` +
         `&$orderby=start/dateTime&$top=50`
-      const r = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Prefer: 'outlook.timezone="UTC"' } })
+      const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
       const data = await r.json()
       if (data.value) setEvents(data.value)
     } catch (e) { console.error('Calendar load error:', e) }
@@ -1465,7 +1653,7 @@ export default function Dashboard() {
       <div className="main-content">
         {tab === 'briefing'  && <BriefingTab events={events} tasks={tasks} emails={emails} />}
         {tab === 'email'     && <EmailTab emails={emails} loading={emailLoading} onRefresh={loadEmails} />}
-        {tab === 'calendar'  && <CalendarTab events={events} />}
+        {tab === 'calendar'  && <CalendarTab events={events} tasks={tasks} />}
         {tab === 'matrix'    && <MatrixTab tasks={tasks} onRefresh={loadTasks} />}
         {tab === 'clients'   && <ClientsTab emails={emails} tasks={tasks} />}
         {tab === 'chat'      && <ChatTab />}
