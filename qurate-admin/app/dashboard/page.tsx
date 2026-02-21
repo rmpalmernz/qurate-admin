@@ -519,11 +519,76 @@ function EmailTab({ emails, loading, onRefresh }: { emails: Email[]; loading: bo
 }
 
 // ─── MATRIX TAB ───────────────────────────────────────────────────────────────
-function MatrixTab({ tasks }: { tasks: EisenhowerTask[] }) {
+function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: () => void }) {
+  const [addOpen, setAddOpen]           = useState(false)
+  const [completing, setCompleting]     = useState<string | null>(null)
+  const [taskTitle, setTaskTitle]       = useState('')
+  const [taskQuadrant, setTaskQuadrant] = useState<'do'|'schedule'|'delegate'|'eliminate'>('do')
+  const [taskClient, setTaskClient]     = useState('')
+  const [taskDue, setTaskDue]           = useState('')
+  const [taskMins, setTaskMins]         = useState('')
+  const [taskNotes, setTaskNotes]       = useState('')
+  const [saving, setSaving]             = useState(false)
+
+  function resetForm() {
+    setTaskTitle(''); setTaskQuadrant('do'); setTaskClient('')
+    setTaskDue(''); setTaskMins(''); setTaskNotes('')
+  }
+
+  async function createTask() {
+    if (!taskTitle.trim()) return
+    setSaving(true)
+    try {
+      await fetch(`${SUPABASE_URL}/rest/v1/eisenhower_tasks`, {
+        method: 'POST',
+        headers: { apikey: ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+        body: JSON.stringify({
+          title: taskTitle.trim(),
+          quadrant: taskQuadrant,
+          client_name: taskClient || null,
+          due_date: taskDue || null,
+          estimated_minutes: taskMins ? parseInt(taskMins) : null,
+          notes: taskNotes || null,
+          status: 'pending',
+        }),
+      })
+      setAddOpen(false)
+      resetForm()
+      onRefresh()
+    } catch { alert('Failed to create task. Please try again.') }
+    setSaving(false)
+  }
+
+  async function completeTask(id: string) {
+    setCompleting(id)
+    try {
+      await fetch(`${SUPABASE_URL}/rest/v1/eisenhower_tasks?id=eq.${id}`, {
+        method: 'PATCH',
+        headers: { apikey: ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+        body: JSON.stringify({ status: 'done' }),
+      })
+      onRefresh()
+    } catch { alert('Failed to update task.') }
+    setCompleting(null)
+  }
+
   const quadrants = ['do', 'schedule', 'delegate', 'eliminate'] as const
+  const q1Count   = tasks.filter(t => t.quadrant === 'do').length
+
   return (
     <div>
-      <h3 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 600, color: '#e8eaf0' }}>Eisenhower Matrix</h3>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#e8eaf0' }}>Eisenhower Matrix</h3>
+        <button onClick={() => setAddOpen(true)} style={{ padding: '7px 14px', background: 'rgba(58,175,169,0.12)', color: '#3AAFA9', border: '1px solid rgba(58,175,169,0.3)', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>+ Add Task</button>
+      </div>
+
+      {q1Count > 8 && (
+        <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 10, padding: '10px 16px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 16 }}>&#9888;</span>
+          <span style={{ fontSize: 13, color: '#ef4444', fontWeight: 500 }}>Q1 overload: {q1Count} urgent tasks. Consider delegating or rescheduling some items.</span>
+        </div>
+      )}
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         {quadrants.map(q => {
           const cfg    = quadrantConfig[q]
@@ -538,10 +603,19 @@ function MatrixTab({ tasks }: { tasks: EisenhowerTask[] }) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {qTasks.length === 0 ? <p style={{ color: '#3d4258', fontSize: 12, margin: 0 }}>No tasks</p> : qTasks.map(t => (
                   <div key={t.id} style={{ background: '#1a1d27', border: '1px solid #2a2f45', borderRadius: 8, padding: '8px 10px' }}>
-                    <p style={{ margin: '0 0 2px', fontSize: 13, color: '#e8eaf0', fontWeight: 500 }}>{t.title}</p>
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                      <p style={{ margin: '0 0 2px', fontSize: 13, color: '#e8eaf0', fontWeight: 500, flex: 1 }}>{t.title}</p>
+                      <button
+                        onClick={() => completeTask(t.id)}
+                        disabled={completing === t.id}
+                        title="Mark complete"
+                        style={{ width: 22, height: 22, borderRadius: '50%', border: `1.5px solid ${cfg.color}`, background: 'transparent', color: cfg.color, cursor: completing === t.id ? 'not-allowed' : 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, opacity: completing === t.id ? 0.5 : 1, padding: 0 }}
+                      >&#10003;</button>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       {t.client_name && <span style={{ fontSize: 11, color: '#3AAFA9' }}>{t.client_name}</span>}
                       {t.due_date && <span style={{ fontSize: 11, color: '#6b7280' }}>{fmtDate(t.due_date)}</span>}
+                      {t.estimated_minutes && <span style={{ fontSize: 11, color: '#6b7280' }}>{t.estimated_minutes}m</span>}
                     </div>
                   </div>
                 ))}
@@ -550,6 +624,30 @@ function MatrixTab({ tasks }: { tasks: EisenhowerTask[] }) {
           )
         })}
       </div>
+
+      {addOpen && (
+        <Modal title="Add Task" onClose={() => { setAddOpen(false); resetForm() }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <input value={taskTitle} onChange={e => setTaskTitle(e.target.value)} placeholder="Task title *" style={inputStyle} autoFocus />
+            <select value={taskQuadrant} onChange={e => setTaskQuadrant(e.target.value as typeof taskQuadrant)} style={{ ...inputStyle, cursor: 'pointer' }}>
+              <option value="do">Q1 — Do First (urgent + important)</option>
+              <option value="schedule">Q2 — Schedule (important, not urgent)</option>
+              <option value="delegate">Q3 — Delegate (urgent, not important)</option>
+              <option value="eliminate">Q4 — Eliminate (not urgent, not important)</option>
+            </select>
+            <input value={taskClient} onChange={e => setTaskClient(e.target.value)} placeholder="Client name (optional)" style={inputStyle} />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <input type="date" value={taskDue} onChange={e => setTaskDue(e.target.value)} style={inputStyle} />
+              <input type="number" value={taskMins} onChange={e => setTaskMins(e.target.value)} placeholder="Est. minutes" min={1} style={inputStyle} />
+            </div>
+            <textarea value={taskNotes} onChange={e => setTaskNotes(e.target.value)} placeholder="Notes (optional)" rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => { setAddOpen(false); resetForm() }} style={secondaryBtnStyle}>Cancel</button>
+              <button onClick={createTask} disabled={!taskTitle.trim() || saving} style={{ ...primaryBtnStyle, opacity: !taskTitle.trim() || saving ? 0.5 : 1 }}>{saving ? 'Saving...' : 'Add Task'}</button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }
@@ -705,7 +803,7 @@ export default function Dashboard() {
         <div style={{ display: 'flex', gap: 2, overflowX: 'auto' }}>
           <TabBtn active={tab === 'briefing'} onClick={() => setTab('briefing')}>Briefing</TabBtn>
           <TabBtn active={tab === 'email'}    onClick={() => setTab('email')}>Email{unread > 0 ? ` (${unread})` : ''}</TabBtn>
-          <TabBtn active={tab === 'matrix'}   onClick={() => setTab('matrix')}>Matrix</TabBtn>
+          <TabBtn active={tab === 'matrix'}   onClick={() => setTab('matrix')}>Matrix{tasks.filter(t => t.quadrant === 'do').length > 0 ? ` (${tasks.filter(t => t.quadrant === 'do').length})` : ''}</TabBtn>
           <TabBtn active={tab === 'chat'}     onClick={() => setTab('chat')}>Chat</TabBtn>
           <TabBtn active={tab === 'settings'} onClick={() => setTab('settings')}>Settings</TabBtn>
         </div>
@@ -715,7 +813,7 @@ export default function Dashboard() {
       <div style={{ padding: '24px', maxWidth: 1200, margin: '0 auto' }}>
         {tab === 'briefing' && <BriefingTab events={events} tasks={tasks} emails={emails} />}
         {tab === 'email'    && <EmailTab emails={emails} loading={emailLoading} onRefresh={loadEmails} />}
-        {tab === 'matrix'   && <MatrixTab tasks={tasks} />}
+        {tab === 'matrix'   && <MatrixTab tasks={tasks} onRefresh={loadTasks} />}
         {tab === 'chat'     && <ChatTab />}
         {tab === 'settings' && <SettingsTab connected={connected} onDisconnect={() => { setConnected(false); window.location.href = '/' }} />}
       </div>
