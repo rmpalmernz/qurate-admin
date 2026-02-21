@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { SUPABASE_FUNCTIONS_URL } from '@/lib/supabase'
 
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -1148,10 +1148,12 @@ export default function Dashboard() {
 
   useEffect(() => { loadEmails(); loadCalendar(); loadTasks() }, [loadEmails, loadCalendar, loadTasks])
 
-  const unread       = emails.filter(e => !e.isRead).length
-  const todayEvtCount = events.filter(e => (e.start?.dateTime || e.start?.date) && localDateKey(evtStart(e)) === localDateKey(new Date())).length
-
-  const q1Count = tasks.filter(t => t.quadrant === 'do').length
+  const unread        = useMemo(() => emails.filter(e => !e.isRead).length, [emails])
+  const todayEvtCount = useMemo(() => {
+    const todayKey = localDateKey(new Date())
+    return events.filter(e => (e.start?.dateTime || e.start?.date) && localDateKey(evtStart(e)) === todayKey).length
+  }, [events])
+  const q1Count = useMemo(() => tasks.filter(t => t.quadrant === 'do').length, [tasks])
 
   const navItems: Array<{ key: Tab; label: string; badge?: number }> = [
     { key: 'briefing',  label: 'Brief' },
