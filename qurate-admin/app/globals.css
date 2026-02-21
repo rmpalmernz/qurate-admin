@@ -21,3 +21,106 @@ body {
   font-family: 'DM Sans', -apple-system, sans-serif;
   margin: 0;
 }
+
+/* ── Responsive layout helpers ──────────────────────────────────────────── */
+
+/* 2-column grid → single column on mobile */
+.r-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+@media (max-width: 768px) {
+  .r-grid-2 { grid-template-columns: 1fr; }
+}
+
+/* Email split pane: 2 cols when detail is open, always 1 col on mobile */
+.email-grid { display: grid; grid-template-columns: 1fr; }
+.email-grid--split { grid-template-columns: 1fr 1fr; }
+@media (max-width: 768px) {
+  .email-grid--split { grid-template-columns: 1fr; }
+}
+
+/* Calendar week grid: horizontal scroll on mobile */
+.r-week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+}
+@media (max-width: 900px) {
+  .r-week-grid {
+    display: flex;
+    overflow-x: auto;
+    gap: 8px;
+    padding-bottom: 8px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .r-week-grid > * {
+    flex: 0 0 calc(33.33% - 6px);
+    min-width: 110px;
+  }
+}
+
+/* Main content area: tighter padding on mobile */
+.main-content {
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+@media (max-width: 640px) {
+  .main-content { padding: 12px; }
+}
+
+/* Dashboard header: tighter on mobile */
+.dash-header {
+  background: #1a1d27;
+  border-bottom: 1px solid #2a2f45;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+@media (max-width: 640px) {
+  .dash-header { padding: 0 12px; }
+}
+
+/* Hide on small screens */
+.hide-mobile { display: block; }
+@media (max-width: 640px) {
+  .hide-mobile { display: none; }
+}
+
+/* Tab bar: scrollable, no scrollbar visible */
+.tab-bar {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.tab-bar::-webkit-scrollbar { display: none; }
+
+/* Chat container height — account for mobile browser chrome */
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 180px);
+}
+@media (max-width: 640px) {
+  .chat-container { height: calc(100svh - 140px); }
+}
+
+/* Safe area insets for notched phones */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .main-content {
+    padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  }
+  @media (max-width: 640px) {
+    .main-content {
+      padding-bottom: calc(12px + env(safe-area-inset-bottom));
+    }
+  }
+}
