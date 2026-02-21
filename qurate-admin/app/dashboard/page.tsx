@@ -652,6 +652,196 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
   )
 }
 
+// ─── CALENDAR TAB ─────────────────────────────────────────────────────────────
+function CalendarTab({ events }: { events: CalendarEvent[] }) {
+  const [view, setView] = useState<'agenda'|'week'>('agenda')
+
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+
+  const upcoming = [...events]
+    .filter(e => new Date(e.end.dateTime) >= today)
+    .sort((a, b) => new Date(a.start.dateTime).getTime() - new Date(b.start.dateTime).getTime())
+
+  const byDay: Record<string, CalendarEvent[]> = {}
+  upcoming.forEach(e => {
+    const key = new Date(e.start.dateTime).toDateString()
+    if (!byDay[key]) byDay[key] = []
+    byDay[key].push(e)
+  })
+
+  const weekDays = (() => {
+    const d   = new Date(today)
+    const dow = d.getDay()
+    const mon = new Date(d); mon.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1))
+    return Array.from({ length: 7 }, (_, i) => { const x = new Date(mon); x.setDate(mon.getDate() + i); return x })
+  })()
+
+  const viewBtn = (v: 'agenda'|'week', label: string) => (
+    <button onClick={() => setView(v)} style={{ padding: '5px 14px', borderRadius: 6, border: 'none', fontSize: 12, background: view === v ? 'rgba(58,175,169,0.15)' : 'transparent', color: view === v ? '#3AAFA9' : '#6b7280', fontWeight: view === v ? 600 : 400, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>{label}</button>
+  )
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#e8eaf0' }}>Calendar</h3>
+        <div style={{ display: 'flex', gap: 2, background: '#1a1d27', border: '1px solid #2a2f45', borderRadius: 8, padding: 3 }}>
+          {viewBtn('agenda', 'Agenda')} {viewBtn('week', 'Week')}
+        </div>
+      </div>
+
+      {view === 'agenda' ? (
+        upcoming.length === 0
+          ? <Card><p style={{ color: '#6b7280', margin: 0, fontSize: 13 }}>No upcoming events.</p></Card>
+          : <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {Object.entries(byDay).slice(0, 14).map(([dayStr, dayEvts]) => {
+                const d          = new Date(dayStr)
+                const isToday    = d.toDateString() === new Date().toDateString()
+                const isTomorrow = d.toDateString() === new Date(Date.now() + 86400000).toDateString()
+                const label      = isToday ? 'Today' : isTomorrow ? 'Tomorrow' : fmtDate(d.toISOString())
+                return (
+                  <div key={dayStr}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: isToday ? '#3AAFA9' : '#6b7280', textTransform: 'uppercase', letterSpacing: '0.6px' }}>{label}</span>
+                      <div style={{ flex: 1, height: 1, background: '#2a2f45' }} />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {dayEvts.map(e => (
+                        <Card key={e.id} style={{ padding: '12px 14px' }}>
+                          <div style={{ display: 'flex', gap: 14 }}>
+                            <div style={{ minWidth: 90, color: '#3AAFA9', fontSize: 12, fontWeight: 600, paddingTop: 2, flexShrink: 0 }}>
+                              {fmt(e.start.dateTime)}&ndash;{fmt(e.end.dateTime)}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontWeight: 500, color: '#e8eaf0', fontSize: 14, marginBottom: 3 }}>{e.subject}</div>
+                              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                                {e.location?.displayName && <span style={{ fontSize: 12, color: '#6b7280' }}>@ {e.location.displayName}</span>}
+                                {e.organizer?.emailAddress?.name && <span style={{ fontSize: 12, color: '#6b7280' }}>with {e.organizer.emailAddress.name}</span>}
+                              </div>
+                              {e.bodyPreview && <p style={{ margin: '5px 0 0', fontSize: 12, color: '#3d4258', lineHeight: 1.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.bodyPreview.slice(0, 140)}</p>}
+                            </div>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 8 }}>
+          {weekDays.map(day => {
+            const isToday  = day.toDateString() === new Date().toDateString()
+            const dayEvts  = events
+              .filter(e => new Date(e.start.dateTime).toDateString() === day.toDateString())
+              .sort((a, b) => new Date(a.start.dateTime).getTime() - new Date(b.start.dateTime).getTime())
+            return (
+              <div key={day.toISOString()} style={{ background: isToday ? 'rgba(58,175,169,0.06)' : '#1a1d27', border: `1px solid ${isToday ? 'rgba(58,175,169,0.3)' : '#2a2f45'}`, borderRadius: 10, padding: '10px 8px', minHeight: 140 }}>
+                <div style={{ textAlign: 'center', marginBottom: 10 }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: isToday ? '#3AAFA9' : '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{day.toLocaleDateString('en-AU', { weekday: 'short' })}</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: isToday ? '#3AAFA9' : '#e8eaf0', lineHeight: 1.3 }}>{day.getDate()}</div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {dayEvts.length === 0
+                    ? <p style={{ color: '#2a2f45', fontSize: 11, margin: 0, textAlign: 'center' }}>—</p>
+                    : dayEvts.map(e => (
+                        <div key={e.id} style={{ background: 'rgba(58,175,169,0.1)', borderLeft: '2px solid #3AAFA9', borderRadius: 4, padding: '3px 6px' }}>
+                          <div style={{ fontSize: 10, color: '#3AAFA9', fontWeight: 600 }}>{fmt(e.start.dateTime)}</div>
+                          <div style={{ fontSize: 11, color: '#c0c8d8', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.subject}</div>
+                        </div>
+                      ))}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── CLIENTS TAB ──────────────────────────────────────────────────────────────
+function ClientsTab({ emails, tasks }: { emails: Email[]; tasks: EisenhowerTask[] }) {
+  const clientList = VIP_CLIENTS.map((name, i) => {
+    const domain       = VIP_DOMAINS[i]
+    const clientEmails = emails.filter(e => {
+      const cn   = (e.ai_client_name || '').toLowerCase()
+      const addr = e.from.address.toLowerCase()
+      return cn.includes(name.toLowerCase()) || addr.includes(domain)
+    })
+    const clientTasks  = tasks.filter(t => (t.client_name || '').toLowerCase().includes(name.toLowerCase()))
+    const sorted       = [...clientEmails].sort((a, b) => new Date(b.receivedDateTime).getTime() - new Date(a.receivedDateTime).getTime())
+    const lastEmail    = sorted[0]
+    const urgentCount  = clientTasks.filter(t => t.quadrant === 'do').length
+    const unreadCount  = clientEmails.filter(e => !e.isRead).length
+    return { name, emails: clientEmails, tasks: clientTasks, lastEmail, urgentCount, unreadCount }
+  })
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#e8eaf0' }}>Client Pipeline</h3>
+        <span style={{ fontSize: 12, color: '#6b7280' }}>{clientList.length} VIP clients tracked</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        {clientList.map(c => (
+          <Card key={c.name}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+              <div>
+                <h4 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 600, color: '#e8eaf0' }}>{c.name}</h4>
+                {c.lastEmail
+                  ? <p style={{ margin: 0, fontSize: 11, color: '#6b7280' }}>Last contact: {timeAgo(c.lastEmail.receivedDateTime)}</p>
+                  : <p style={{ margin: 0, fontSize: 11, color: '#3d4258' }}>No recent email</p>}
+              </div>
+              {c.urgentCount > 0 && (
+                <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 4, background: 'rgba(239,68,68,0.12)', color: '#ef4444', flexShrink: 0 }}>{c.urgentCount} urgent</span>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              {[
+                { val: c.emails.length, label: 'emails',  color: '#3AAFA9' },
+                { val: c.tasks.length,  label: 'tasks',   color: '#C9A96E' },
+                { val: c.unreadCount,   label: 'unread',  color: c.unreadCount > 0 ? '#ef4444' : '#6b7280' },
+              ].map(({ val, label, color }) => (
+                <div key={label} style={{ flex: 1, background: '#0f1117', borderRadius: 8, padding: '8px 6px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 20, fontWeight: 700, color }}>{val}</div>
+                  <div style={{ fontSize: 11, color: '#6b7280' }}>{label}</div>
+                </div>
+              ))}
+            </div>
+
+            {c.tasks.length > 0 && (
+              <div style={{ marginBottom: 10 }}>
+                <p style={{ margin: '0 0 6px', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Active tasks</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {c.tasks.slice(0, 3).map(t => (
+                    <div key={t.id} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '4px 8px', background: '#0f1117', borderRadius: 6 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: quadrantConfig[t.quadrant].color, flexShrink: 0 }} />
+                      <span style={{ fontSize: 12, color: '#b0b8cc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</span>
+                    </div>
+                  ))}
+                  {c.tasks.length > 3 && <p style={{ margin: 0, fontSize: 11, color: '#3d4258' }}>+{c.tasks.length - 3} more</p>}
+                </div>
+              </div>
+            )}
+
+            {c.lastEmail && (
+              <div style={{ padding: '8px 10px', background: '#0f1117', borderRadius: 8 }}>
+                <p style={{ margin: '0 0 2px', fontSize: 11, color: '#6b7280' }}>{c.lastEmail.from.name}</p>
+                <p style={{ margin: 0, fontSize: 12, color: '#8892a4', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.lastEmail.subject}</p>
+              </div>
+            )}
+
+            {!c.lastEmail && c.tasks.length === 0 && (
+              <p style={{ margin: 0, fontSize: 12, color: '#3d4258' }}>No recent activity</p>
+            )}
+          </Card>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─── CHAT TAB ─────────────────────────────────────────────────────────────────
 function ChatTab() {
   const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([
@@ -753,7 +943,7 @@ function SettingsTab({ connected, onDisconnect }: { connected: boolean; onDiscon
 
 // ─── MAIN DASHBOARD ───────────────────────────────────────────────────────────
 export default function Dashboard() {
-  const [tab, setTab]           = useState<'briefing'|'email'|'matrix'|'chat'|'settings'>('briefing')
+  const [tab, setTab]           = useState<'briefing'|'email'|'calendar'|'matrix'|'clients'|'chat'|'settings'>('briefing')
   const [emails, setEmails]     = useState<Email[]>([])
   const [events, setEvents]     = useState<CalendarEvent[]>([])
   const [tasks, setTasks]       = useState<EisenhowerTask[]>([])
@@ -791,7 +981,8 @@ export default function Dashboard() {
 
   useEffect(() => { loadEmails(); loadCalendar(); loadTasks() }, [loadEmails, loadCalendar, loadTasks])
 
-  const unread = emails.filter(e => !e.isRead).length
+  const unread       = emails.filter(e => !e.isRead).length
+  const todayEvtCount = events.filter(e => new Date(e.start.dateTime).toDateString() === new Date().toDateString()).length
 
   return (
     <div style={{ minHeight: '100vh', background: '#0f1117', fontFamily: "'DM Sans', sans-serif" }}>
@@ -803,7 +994,9 @@ export default function Dashboard() {
         <div style={{ display: 'flex', gap: 2, overflowX: 'auto' }}>
           <TabBtn active={tab === 'briefing'} onClick={() => setTab('briefing')}>Briefing</TabBtn>
           <TabBtn active={tab === 'email'}    onClick={() => setTab('email')}>Email{unread > 0 ? ` (${unread})` : ''}</TabBtn>
+          <TabBtn active={tab === 'calendar'} onClick={() => setTab('calendar')}>Calendar{todayEvtCount > 0 ? ` (${todayEvtCount})` : ''}</TabBtn>
           <TabBtn active={tab === 'matrix'}   onClick={() => setTab('matrix')}>Matrix{tasks.filter(t => t.quadrant === 'do').length > 0 ? ` (${tasks.filter(t => t.quadrant === 'do').length})` : ''}</TabBtn>
+          <TabBtn active={tab === 'clients'}  onClick={() => setTab('clients')}>Clients</TabBtn>
           <TabBtn active={tab === 'chat'}     onClick={() => setTab('chat')}>Chat</TabBtn>
           <TabBtn active={tab === 'settings'} onClick={() => setTab('settings')}>Settings</TabBtn>
         </div>
@@ -811,11 +1004,13 @@ export default function Dashboard() {
       </div>
 
       <div style={{ padding: '24px', maxWidth: 1200, margin: '0 auto' }}>
-        {tab === 'briefing' && <BriefingTab events={events} tasks={tasks} emails={emails} />}
-        {tab === 'email'    && <EmailTab emails={emails} loading={emailLoading} onRefresh={loadEmails} />}
-        {tab === 'matrix'   && <MatrixTab tasks={tasks} onRefresh={loadTasks} />}
-        {tab === 'chat'     && <ChatTab />}
-        {tab === 'settings' && <SettingsTab connected={connected} onDisconnect={() => { setConnected(false); window.location.href = '/' }} />}
+        {tab === 'briefing'  && <BriefingTab events={events} tasks={tasks} emails={emails} />}
+        {tab === 'email'     && <EmailTab emails={emails} loading={emailLoading} onRefresh={loadEmails} />}
+        {tab === 'calendar'  && <CalendarTab events={events} />}
+        {tab === 'matrix'    && <MatrixTab tasks={tasks} onRefresh={loadTasks} />}
+        {tab === 'clients'   && <ClientsTab emails={emails} tasks={tasks} />}
+        {tab === 'chat'      && <ChatTab />}
+        {tab === 'settings'  && <SettingsTab connected={connected} onDisconnect={() => { setConnected(false); window.location.href = '/' }} />}
       </div>
 
       <style>{`
