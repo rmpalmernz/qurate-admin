@@ -897,7 +897,15 @@ function ChatTab() {
     setMessages(m => [...m, { role: 'user', content: userMsg }])
     setLoading(true)
     try {
-      const res = await authFetch(`${SUPABASE_FUNCTIONS_URL}/chat`, { method: 'POST', body: JSON.stringify({ message: userMsg, history: messages }) })
+      // Build full conversation array (Claude API format) — edge function expects `messages`
+      const conversationMessages = [
+        ...messages.filter(m => m.role === 'user' || m.role === 'assistant'),
+        { role: 'user' as const, content: userMsg },
+      ]
+      const res = await authFetch(`${SUPABASE_FUNCTIONS_URL}/chat`, {
+        method: 'POST',
+        body: JSON.stringify({ message: userMsg, messages: conversationMessages }),
+      })
       const data = await res.json()
       setMessages(m => [...m, { role: 'assistant', content: data.response || data.message || JSON.stringify(data) }])
     } catch {
