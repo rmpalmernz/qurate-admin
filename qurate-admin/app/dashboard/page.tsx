@@ -221,7 +221,7 @@ function BriefingTab({ events, tasks, emails }: { events: CalendarEvent[]; tasks
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      <div className="r-grid-2" style={{ gap: 16 }}>
         <Card>
           <h3 style={{ margin: '0 0 14px', fontSize: 13, fontWeight: 600, color: '#3AAFA9', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Today&apos;s Calendar</h3>
           {todayEvts.length === 0 ? <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>No meetings today — clear day ahead.</p> : (
@@ -387,7 +387,7 @@ function EmailTab({ emails, loading, onRefresh }: { emails: Email[]; loading: bo
   )
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: selected ? '1fr 1fr' : '1fr', gap: 16, alignItems: 'start' }}>
+    <div className={selected ? 'email-grid email-grid--split' : 'email-grid'} style={{ gap: 16, alignItems: 'start' }}>
 
       {/* List column */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -591,7 +591,7 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div className="r-grid-2" style={{ gap: 12 }}>
         {quadrants.map(q => {
           const cfg    = quadrantConfig[q]
           const qTasks = tasks.filter(t => t.quadrant === q)
@@ -751,7 +751,7 @@ function CalendarTab({ events }: { events: CalendarEvent[] }) {
               ))}
             </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 8 }}>
+        <div className="r-week-grid">
           {weekDays.map(day => {
             const dayKey  = localDateKey(day)
             const isToday = dayKey === todayKey
@@ -806,7 +806,7 @@ function ClientsTab({ emails, tasks }: { emails: Email[]; tasks: EisenhowerTask[
         <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#e8eaf0' }}>Client Pipeline</h3>
         <span style={{ fontSize: 12, color: '#6b7280' }}>{clientList.length} VIP clients tracked</span>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div className="r-grid-2" style={{ gap: 12 }}>
         {clientList.map(c => (
           <Card key={c.name}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
@@ -903,7 +903,7 @@ function ChatTab() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 180px)' }}>
+    <div className="chat-container">
       {messages.length <= 1 && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
           {quickActions.map(qa => (
@@ -1108,6 +1108,12 @@ export default function Dashboard() {
     } catch (e) { console.error('Tasks load error:', e) }
   }, [])
 
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {})
+    }
+  }, [])
+
   useEffect(() => { loadEmails(); loadCalendar(); loadTasks() }, [loadEmails, loadCalendar, loadTasks])
 
   const unread       = emails.filter(e => !e.isRead).length
@@ -1115,24 +1121,24 @@ export default function Dashboard() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#0f1117', fontFamily: "'DM Sans', sans-serif" }}>
-      <div style={{ background: '#1a1d27', borderBottom: '1px solid #2a2f45', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 56, position: 'sticky', top: 0, zIndex: 100 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div className="dash-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           <div style={{ width: 28, height: 28, background: 'linear-gradient(135deg, #3AAFA9, #C9A96E)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#fff' }}>Q</div>
-          <span style={{ fontSize: 15, fontWeight: 600, color: '#e8eaf0' }}>Admin Agent</span>
+          <span className="hide-mobile" style={{ fontSize: 15, fontWeight: 600, color: '#e8eaf0' }}>Admin Agent</span>
         </div>
-        <div style={{ display: 'flex', gap: 2, overflowX: 'auto' }}>
+        <div className="tab-bar">
           <TabBtn active={tab === 'briefing'} onClick={() => setTab('briefing')}>Briefing</TabBtn>
           <TabBtn active={tab === 'email'}    onClick={() => setTab('email')}>Email{unread > 0 ? ` (${unread})` : ''}</TabBtn>
-          <TabBtn active={tab === 'calendar'} onClick={() => setTab('calendar')}>Calendar{todayEvtCount > 0 ? ` (${todayEvtCount})` : ''}</TabBtn>
+          <TabBtn active={tab === 'calendar'} onClick={() => setTab('calendar')}>Cal{todayEvtCount > 0 ? ` (${todayEvtCount})` : ''}</TabBtn>
           <TabBtn active={tab === 'matrix'}   onClick={() => setTab('matrix')}>Matrix{tasks.filter(t => t.quadrant === 'do').length > 0 ? ` (${tasks.filter(t => t.quadrant === 'do').length})` : ''}</TabBtn>
           <TabBtn active={tab === 'clients'}  onClick={() => setTab('clients')}>Clients</TabBtn>
           <TabBtn active={tab === 'chat'}     onClick={() => setTab('chat')}>Chat</TabBtn>
           <TabBtn active={tab === 'settings'} onClick={() => setTab('settings')}>Settings</TabBtn>
         </div>
-        <div style={{ fontSize: 12, color: '#6b7280' }}>{new Date().toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}</div>
+        <div className="hide-mobile" style={{ fontSize: 12, color: '#6b7280', flexShrink: 0 }}>{new Date().toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}</div>
       </div>
 
-      <div style={{ padding: '24px', maxWidth: 1200, margin: '0 auto' }}>
+      <div className="main-content">
         {tab === 'briefing'  && <BriefingTab events={events} tasks={tasks} emails={emails} />}
         {tab === 'email'     && <EmailTab emails={emails} loading={emailLoading} onRefresh={loadEmails} />}
         {tab === 'calendar'  && <CalendarTab events={events} />}
