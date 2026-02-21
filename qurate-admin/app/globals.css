@@ -22,6 +22,93 @@ body {
   margin: 0;
 }
 
+/* ── Top header ─────────────────────────────────────────────────────────── */
+.dash-header {
+  background: #1a1d27;
+  border-bottom: 1px solid #2a2f45;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+/* ── Bottom navigation bar ───────────────────────────────────────────────── */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #1a1d27;
+  border-top: 1px solid #2a2f45;
+  display: flex;
+  align-items: stretch;
+  z-index: 100;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.bottom-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #4b5563;
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 8px 2px;
+  position: relative;
+  transition: color 0.15s;
+  min-height: 56px;
+}
+
+.bottom-nav-item.active {
+  color: #3AAFA9;
+}
+
+.bottom-nav-item:not(.active):hover {
+  color: #9ca3af;
+}
+
+/* Active indicator bar at top of nav item */
+.bottom-nav-item.active::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 20%;
+  right: 20%;
+  height: 2px;
+  background: #3AAFA9;
+  border-radius: 0 0 2px 2px;
+}
+
+.nav-badge {
+  position: absolute;
+  top: 5px;
+  left: 50%;
+  transform: translateX(6px);
+  background: #ef4444;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  min-width: 15px;
+  height: 15px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  line-height: 1;
+}
+
 /* ── Responsive layout helpers ──────────────────────────────────────────── */
 
 /* 2-column grid → single column on mobile */
@@ -60,67 +147,28 @@ body {
   }
 }
 
-/* Main content area: tighter padding on mobile */
+/* Main content area — must clear bottom nav */
 .main-content {
-  padding: 24px;
+  padding: 20px 24px;
+  padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
   max-width: 1200px;
   margin: 0 auto;
 }
 @media (max-width: 640px) {
-  .main-content { padding: 12px; }
+  .main-content {
+    padding: 12px;
+    padding-bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+  }
 }
 
-/* Dashboard header: tighter on mobile */
-.dash-header {
-  background: #1a1d27;
-  border-bottom: 1px solid #2a2f45;
-  padding: 0 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 56px;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-@media (max-width: 640px) {
-  .dash-header { padding: 0 12px; }
-}
-
-/* Hide on small screens */
-.hide-mobile { display: block; }
-@media (max-width: 640px) {
-  .hide-mobile { display: none; }
-}
-
-/* Tab bar: scrollable, no scrollbar visible */
-.tab-bar {
-  display: flex;
-  gap: 2px;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-.tab-bar::-webkit-scrollbar { display: none; }
-
-/* Chat container height — account for mobile browser chrome */
+/* Chat container height */
 .chat-container {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 180px);
+  height: calc(100vh - 56px - 56px - 60px - 40px);
 }
 @media (max-width: 640px) {
-  .chat-container { height: calc(100svh - 140px); }
-}
-
-/* Safe area insets for notched phones */
-@supports (padding-bottom: env(safe-area-inset-bottom)) {
-  .main-content {
-    padding-bottom: calc(24px + env(safe-area-inset-bottom));
-  }
-  @media (max-width: 640px) {
-    .main-content {
-      padding-bottom: calc(12px + env(safe-area-inset-bottom));
-    }
+  .chat-container {
+    height: calc(100svh - 56px - 56px - 60px - 24px);
   }
 }
