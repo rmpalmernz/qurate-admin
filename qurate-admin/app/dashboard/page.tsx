@@ -1093,10 +1093,20 @@ export default function Dashboard() {
 
   const loadCalendar = useCallback(async () => {
     try {
-      const res  = await authFetch(`${SUPABASE_FUNCTIONS_URL}/ms-calendar`)
-      const data = await res.json()
-      if (data.events) setEvents(data.events)
-      else if (Array.isArray(data)) setEvents(data)
+      const token = await getMsToken()
+      if (!token) return
+      // Fetch calendar events for the next 14 days via MS Graph calendarView
+      const start = new Date()
+      start.setHours(0, 0, 0, 0)
+      const end = new Date(start)
+      end.setDate(start.getDate() + 14)
+      const url = `https://graph.microsoft.com/v1.0/me/calendarView` +
+        `?startDateTime=${start.toISOString()}&endDateTime=${end.toISOString()}` +
+        `&$select=id,subject,start,end,location,organizer,bodyPreview,isAllDay` +
+        `&$orderby=start/dateTime&$top=50`
+      const r = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Prefer: 'outlook.timezone="UTC"' } })
+      const data = await r.json()
+      if (data.value) setEvents(data.value)
     } catch (e) { console.error('Calendar load error:', e) }
   }, [])
 
