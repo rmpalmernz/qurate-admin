@@ -928,12 +928,115 @@ function ChatTab() {
 
 // ─── SETTINGS TAB ─────────────────────────────────────────────────────────────
 function SettingsTab({ connected, onDisconnect }: { connected: boolean; onDisconnect: () => void }) {
+  const [briefingTime, setBriefingTime] = useState('08:00')
+  const [focusStart, setFocusStart]     = useState('09:00')
+  const [focusEnd, setFocusEnd]         = useState('12:00')
+  const [vipContacts, setVipContacts]   = useState<string[]>([...VIP_CLIENTS])
+  const [newContact, setNewContact]     = useState('')
+  const [saved, setSaved]               = useState(false)
+
+  // Read localStorage after mount (SSR-safe)
+  useEffect(() => {
+    setBriefingTime(localStorage.getItem('pref_briefing_time') || '08:00')
+    setFocusStart(localStorage.getItem('pref_focus_start')    || '09:00')
+    setFocusEnd(localStorage.getItem('pref_focus_end')        || '12:00')
+    try {
+      const raw = localStorage.getItem('pref_vip_contacts')
+      if (raw) setVipContacts(JSON.parse(raw))
+    } catch {}
+  }, [])
+
+  function savePrefs() {
+    localStorage.setItem('pref_briefing_time',  briefingTime)
+    localStorage.setItem('pref_focus_start',    focusStart)
+    localStorage.setItem('pref_focus_end',      focusEnd)
+    localStorage.setItem('pref_vip_contacts',   JSON.stringify(vipContacts))
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  function addContact() {
+    const c = newContact.trim()
+    if (c && !vipContacts.includes(c)) { setVipContacts(p => [...p, c]); setNewContact('') }
+  }
+
   async function disconnect() {
     await authFetch(`${SUPABASE_FUNCTIONS_URL}/ms-auth?action=disconnect`)
     onDisconnect()
   }
+
+  const archiveRules = [
+    { label: 'No-reply senders',       pattern: 'noreply@*,  no-reply@*' },
+    { label: 'Notification services',  pattern: 'notifications@*' },
+    { label: 'SharePoint / Teams',     pattern: '*@sharepoint.com, *@teams.microsoft.com' },
+    { label: 'n8n automation',         pattern: '*@n8n.io' },
+    { label: 'Microsoft system mail',  pattern: '*@microsoft.com' },
+  ]
+
+  const labelStyle: React.CSSProperties = { fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 6 }
+
   return (
-    <div style={{ maxWidth: 560, display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ maxWidth: 600, display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+      {/* Briefing Preferences */}
+      <Card>
+        <h3 style={{ margin: '0 0 16px', fontSize: 13, fontWeight: 600, color: '#3AAFA9', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Briefing Preferences</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <label style={labelStyle}>Daily Briefing Time</label>
+            <input type="time" value={briefingTime} onChange={e => setBriefingTime(e.target.value)} style={{ ...inputStyle, maxWidth: 160 }} />
+          </div>
+          <div>
+            <label style={labelStyle}>Focus Block Window</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <input type="time" value={focusStart} onChange={e => setFocusStart(e.target.value)} style={{ ...inputStyle, maxWidth: 140 }} />
+              <span style={{ color: '#6b7280', fontSize: 13 }}>to</span>
+              <input type="time" value={focusEnd}   onChange={e => setFocusEnd(e.target.value)}   style={{ ...inputStyle, maxWidth: 140 }} />
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* VIP Clients */}
+      <Card>
+        <h3 style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 600, color: '#C9A96E', textTransform: 'uppercase', letterSpacing: '0.8px' }}>VIP Clients</h3>
+        <p style={{ margin: '0 0 12px', fontSize: 12, color: '#6b7280' }}>Treated as VIP in Email and Clients tabs. Changes apply on next page load.</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+          {vipContacts.map(name => (
+            <div key={name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 10px', background: '#0f1117', border: '1px solid #2a2f45', borderRadius: 7 }}>
+              <span style={{ fontSize: 13, color: '#e8eaf0' }}>{name}</span>
+              <button onClick={() => setVipContacts(p => p.filter(c => c !== name))} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '0 2px' }}>&#x2715;</button>
+            </div>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input value={newContact} onChange={e => setNewContact(e.target.value)} onKeyDown={e => e.key === 'Enter' && addContact()} placeholder="Add client name..." style={{ ...inputStyle, flex: 1 }} />
+          <button onClick={addContact} disabled={!newContact.trim()} style={{ ...primaryBtnStyle, opacity: newContact.trim() ? 1 : 0.5 }}>Add</button>
+        </div>
+      </Card>
+
+      {/* Auto-archive Rules */}
+      <Card>
+        <h3 style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 600, color: '#3AAFA9', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Auto-archive Rules</h3>
+        <p style={{ margin: '0 0 12px', fontSize: 12, color: '#6b7280' }}>Emails matching these patterns are routed to the Tools filter automatically.</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {archiveRules.map(r => (
+            <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: '#0f1117', border: '1px solid #2a2f45', borderRadius: 7 }}>
+              <span style={{ fontSize: 13, color: '#e8eaf0' }}>{r.label}</span>
+              <span style={{ fontSize: 11, color: '#3d4258', fontFamily: 'monospace' }}>{r.pattern}</span>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {/* Save */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <button onClick={savePrefs} style={{ ...primaryBtnStyle, minWidth: 140 }}>
+          {saved ? 'Saved &#10003;' : 'Save Preferences'}
+        </button>
+      </div>
+
+      {/* Microsoft Connection */}
       <Card>
         <h3 style={{ margin: '0 0 14px', fontSize: 13, fontWeight: 600, color: '#3AAFA9', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Microsoft Connection</h3>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -944,6 +1047,8 @@ function SettingsTab({ connected, onDisconnect }: { connected: boolean; onDiscon
           {connected && <button onClick={disconnect} style={{ padding: '8px 14px', background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontFamily: "'DM Sans', sans-serif" }}>Disconnect</button>}
         </div>
       </Card>
+
+      {/* About */}
       <Card>
         <h3 style={{ margin: '0 0 14px', fontSize: 13, fontWeight: 600, color: '#3AAFA9', textTransform: 'uppercase', letterSpacing: '0.8px' }}>About</h3>
         <p style={{ margin: 0, fontSize: 13, color: '#6b7280', lineHeight: 1.6 }}>
