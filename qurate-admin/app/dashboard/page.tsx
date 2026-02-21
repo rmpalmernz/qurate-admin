@@ -27,8 +27,9 @@ interface Email {
 interface CalendarEvent {
   id: string
   subject: string
-  start: { dateTime: string }
-  end: { dateTime: string }
+  start: { dateTime?: string; date?: string }
+  end: { dateTime?: string; date?: string }
+  isAllDay?: boolean
   location?: { displayName: string }
   organizer?: { emailAddress: { name: string } }
   bodyPreview?: string
@@ -192,8 +193,9 @@ function BriefingTab({ events, tasks, emails }: { events: CalendarEvent[]; tasks
   const hour       = today.getHours()
   const greeting   = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
   const todayStr   = today.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })
-  const todayEvts  = events.filter(e => new Date(e.start.dateTime).toDateString() === today.toDateString())
-                           .sort((a, b) => new Date(a.start.dateTime).getTime() - new Date(b.start.dateTime).getTime())
+  const todayEvts  = events
+                           .filter(e => (e.start?.dateTime || e.start?.date) && localDateKey(evtStart(e)) === localDateKey(today))
+                           .sort((a, b) => evtStart(a).getTime() - evtStart(b).getTime())
   const q1Tasks    = tasks.filter(t => t.quadrant === 'do')
   const q2Tasks    = tasks.filter(t => t.quadrant === 'schedule')
   const q1Emails   = emails.filter(e => emailToQuadrant(e) === 'do')
@@ -226,7 +228,7 @@ function BriefingTab({ events, tasks, emails }: { events: CalendarEvent[]; tasks
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {todayEvts.map(e => (
                 <div key={e.id} style={{ display: 'flex', gap: 14, padding: '10px 12px', background: '#22263a', borderRadius: 8 }}>
-                  <div style={{ minWidth: 68, color: '#3AAFA9', fontSize: 12, fontWeight: 600, paddingTop: 2 }}>{fmt(e.start.dateTime)}</div>
+                  <div style={{ minWidth: 68, color: '#3AAFA9', fontSize: 12, fontWeight: 600, paddingTop: 2 }}>{(e.isAllDay || !e.start.dateTime) ? 'All day' : fmt(e.start.dateTime)}</div>
                   <div>
                     <div style={{ fontWeight: 500, color: '#e8eaf0', fontSize: 14, marginBottom: 2 }}>{e.subject}</div>
                     {e.location?.displayName && <div style={{ color: '#6b7280', fontSize: 12 }}>@ {e.location.displayName}</div>}
@@ -658,6 +660,14 @@ function localDateKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+// Helper: get a sortable Date from a calendar event (handles both timed + all-day)
+function evtStart(e: CalendarEvent): Date {
+  return e.start.dateTime ? new Date(e.start.dateTime) : new Date(e.start.date + 'T00:00:00')
+}
+function evtEnd(e: CalendarEvent): Date {
+  return e.end.dateTime ? new Date(e.end.dateTime) : new Date(e.end.date + 'T23:59:59')
+}
+
 function CalendarTab({ events }: { events: CalendarEvent[] }) {
   const [view, setView] = useState<'agenda'|'week'>('agenda')
 
@@ -667,20 +677,20 @@ function CalendarTab({ events }: { events: CalendarEvent[] }) {
   const tmrwKey   = localDateKey(tomorrow)
   const todayMid  = new Date(now); todayMid.setHours(0, 0, 0, 0)
 
-  // Upcoming events sorted by start time
+  // Upcoming events sorted by start time (includes all-day events)
   const upcoming = [...events]
-    .filter(e => e.start?.dateTime && new Date(e.end.dateTime).getTime() >= todayMid.getTime())
-    .sort((a, b) => new Date(a.start.dateTime).getTime() - new Date(b.start.dateTime).getTime())
+    .filter(e => (e.start?.dateTime || e.start?.date) && evtEnd(e).getTime() >= todayMid.getTime())
+    .sort((a, b) => evtStart(a).getTime() - evtStart(b).getTime())
 
   // Group events by local YYYY-MM-DD key (no re-parsing needed)
   type DayGroup = { label: string; isToday: boolean; events: CalendarEvent[] }
   const byDay: Record<string, DayGroup> = {}
   upcoming.forEach(e => {
-    const key = localDateKey(new Date(e.start.dateTime))
+    const d   = evtStart(e)
+    const key = localDateKey(d)
     if (!byDay[key]) {
       const isToday    = key === todayKey
       const isTomorrow = key === tmrwKey
-      const d          = new Date(e.start.dateTime)
       const label      = isToday ? 'Today' : isTomorrow ? 'Tomorrow' : d.toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric' })
       byDay[key] = { label, isToday, events: [] }
     }
@@ -723,7 +733,7 @@ function CalendarTab({ events }: { events: CalendarEvent[] }) {
                       <Card key={e.id} style={{ padding: '12px 14px' }}>
                         <div style={{ display: 'flex', gap: 14 }}>
                           <div style={{ minWidth: 90, color: '#3AAFA9', fontSize: 12, fontWeight: 600, paddingTop: 2, flexShrink: 0 }}>
-                            {fmt(e.start.dateTime)} &#8211; {fmt(e.end.dateTime)}
+                            {(e.isAllDay || !e.start.dateTime) ? 'All day' : `${fmt(e.start.dateTime)} \u2013 ${fmt(e.end.dateTime!)}`}
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontWeight: 500, color: '#e8eaf0', fontSize: 14, marginBottom: 3 }}>{e.subject}</div>
@@ -746,8 +756,8 @@ function CalendarTab({ events }: { events: CalendarEvent[] }) {
             const dayKey  = localDateKey(day)
             const isToday = dayKey === todayKey
             const dayEvts = events
-              .filter(e => e.start?.dateTime && localDateKey(new Date(e.start.dateTime)) === dayKey)
-              .sort((a, b) => new Date(a.start.dateTime).getTime() - new Date(b.start.dateTime).getTime())
+              .filter(e => (e.start?.dateTime || e.start?.date) && localDateKey(evtStart(e)) === dayKey)
+              .sort((a, b) => evtStart(a).getTime() - evtStart(b).getTime())
             return (
               <div key={dayKey} style={{ background: isToday ? 'rgba(58,175,169,0.06)' : '#1a1d27', border: `1px solid ${isToday ? 'rgba(58,175,169,0.3)' : '#2a2f45'}`, borderRadius: 10, padding: '10px 8px', minHeight: 140 }}>
                 <div style={{ textAlign: 'center', marginBottom: 10 }}>
@@ -759,7 +769,7 @@ function CalendarTab({ events }: { events: CalendarEvent[] }) {
                     ? <p style={{ color: '#2a2f45', fontSize: 11, margin: 0, textAlign: 'center' }}>&#8212;</p>
                     : dayEvts.map(e => (
                         <div key={e.id} style={{ background: 'rgba(58,175,169,0.1)', borderLeft: '2px solid #3AAFA9', borderRadius: 4, padding: '3px 6px' }}>
-                          <div style={{ fontSize: 10, color: '#3AAFA9', fontWeight: 600 }}>{fmt(e.start.dateTime)}</div>
+                          <div style={{ fontSize: 10, color: '#3AAFA9', fontWeight: 600 }}>{(e.isAllDay || !e.start.dateTime) ? 'All day' : fmt(e.start.dateTime)}</div>
                           <div style={{ fontSize: 11, color: '#c0c8d8', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.subject}</div>
                         </div>
                       ))}
@@ -1101,7 +1111,7 @@ export default function Dashboard() {
   useEffect(() => { loadEmails(); loadCalendar(); loadTasks() }, [loadEmails, loadCalendar, loadTasks])
 
   const unread       = emails.filter(e => !e.isRead).length
-  const todayEvtCount = events.filter(e => new Date(e.start.dateTime).toDateString() === new Date().toDateString()).length
+  const todayEvtCount = events.filter(e => (e.start?.dateTime || e.start?.date) && localDateKey(evtStart(e)) === localDateKey(new Date())).length
 
   return (
     <div style={{ minHeight: '100vh', background: '#0f1117', fontFamily: "'DM Sans', sans-serif" }}>
