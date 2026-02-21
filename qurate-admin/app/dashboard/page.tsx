@@ -653,31 +653,49 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
 }
 
 // ─── CALENDAR TAB ─────────────────────────────────────────────────────────────
+// Helper: local YYYY-MM-DD string from a Date (avoids UTC/timezone boundary issues)
+function localDateKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 function CalendarTab({ events }: { events: CalendarEvent[] }) {
   const [view, setView] = useState<'agenda'|'week'>('agenda')
 
-  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const now       = new Date()
+  const todayKey  = localDateKey(now)
+  const tomorrow  = new Date(now); tomorrow.setDate(now.getDate() + 1)
+  const tmrwKey   = localDateKey(tomorrow)
+  const todayMid  = new Date(now); todayMid.setHours(0, 0, 0, 0)
 
+  // Upcoming events sorted by start time
   const upcoming = [...events]
-    .filter(e => new Date(e.end.dateTime) >= today)
+    .filter(e => e.start?.dateTime && new Date(e.end.dateTime).getTime() >= todayMid.getTime())
     .sort((a, b) => new Date(a.start.dateTime).getTime() - new Date(b.start.dateTime).getTime())
 
-  const byDay: Record<string, CalendarEvent[]> = {}
+  // Group events by local YYYY-MM-DD key (no re-parsing needed)
+  type DayGroup = { label: string; isToday: boolean; events: CalendarEvent[] }
+  const byDay: Record<string, DayGroup> = {}
   upcoming.forEach(e => {
-    const key = new Date(e.start.dateTime).toDateString()
-    if (!byDay[key]) byDay[key] = []
-    byDay[key].push(e)
+    const key = localDateKey(new Date(e.start.dateTime))
+    if (!byDay[key]) {
+      const isToday    = key === todayKey
+      const isTomorrow = key === tmrwKey
+      const d          = new Date(e.start.dateTime)
+      const label      = isToday ? 'Today' : isTomorrow ? 'Tomorrow' : d.toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric' })
+      byDay[key] = { label, isToday, events: [] }
+    }
+    byDay[key].events.push(e)
   })
 
+  // Mon–Sun for current week
   const weekDays = (() => {
-    const d   = new Date(today)
-    const dow = d.getDay()
-    const mon = new Date(d); mon.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1))
+    const dow = now.getDay()
+    const mon = new Date(now); mon.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1)); mon.setHours(0, 0, 0, 0)
     return Array.from({ length: 7 }, (_, i) => { const x = new Date(mon); x.setDate(mon.getDate() + i); return x })
   })()
 
-  const viewBtn = (v: 'agenda'|'week', label: string) => (
-    <button onClick={() => setView(v)} style={{ padding: '5px 14px', borderRadius: 6, border: 'none', fontSize: 12, background: view === v ? 'rgba(58,175,169,0.15)' : 'transparent', color: view === v ? '#3AAFA9' : '#6b7280', fontWeight: view === v ? 600 : 400, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>{label}</button>
+  const viewToggleBtn = (v: 'agenda'|'week', label: string) => (
+    <button key={v} onClick={() => setView(v)} style={{ padding: '5px 14px', borderRadius: 6, border: 'none', fontSize: 12, background: view === v ? 'rgba(58,175,169,0.15)' : 'transparent', color: view === v ? '#3AAFA9' : '#6b7280', fontWeight: view === v ? 600 : 400, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>{label}</button>
   )
 
   return (
@@ -685,7 +703,8 @@ function CalendarTab({ events }: { events: CalendarEvent[] }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#e8eaf0' }}>Calendar</h3>
         <div style={{ display: 'flex', gap: 2, background: '#1a1d27', border: '1px solid #2a2f45', borderRadius: 8, padding: 3 }}>
-          {viewBtn('agenda', 'Agenda')} {viewBtn('week', 'Week')}
+          {viewToggleBtn('agenda', 'Agenda')}
+          {viewToggleBtn('week', 'Week')}
         </div>
       </div>
 
@@ -693,56 +712,51 @@ function CalendarTab({ events }: { events: CalendarEvent[] }) {
         upcoming.length === 0
           ? <Card><p style={{ color: '#6b7280', margin: 0, fontSize: 13 }}>No upcoming events.</p></Card>
           : <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {Object.entries(byDay).slice(0, 14).map(([dayStr, dayEvts]) => {
-                const d          = new Date(dayStr)
-                const isToday    = d.toDateString() === new Date().toDateString()
-                const isTomorrow = d.toDateString() === new Date(Date.now() + 86400000).toDateString()
-                const label      = isToday ? 'Today' : isTomorrow ? 'Tomorrow' : fmtDate(d.toISOString())
-                return (
-                  <div key={dayStr}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: isToday ? '#3AAFA9' : '#6b7280', textTransform: 'uppercase', letterSpacing: '0.6px' }}>{label}</span>
-                      <div style={{ flex: 1, height: 1, background: '#2a2f45' }} />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {dayEvts.map(e => (
-                        <Card key={e.id} style={{ padding: '12px 14px' }}>
-                          <div style={{ display: 'flex', gap: 14 }}>
-                            <div style={{ minWidth: 90, color: '#3AAFA9', fontSize: 12, fontWeight: 600, paddingTop: 2, flexShrink: 0 }}>
-                              {fmt(e.start.dateTime)}&ndash;{fmt(e.end.dateTime)}
-                            </div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontWeight: 500, color: '#e8eaf0', fontSize: 14, marginBottom: 3 }}>{e.subject}</div>
-                              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                                {e.location?.displayName && <span style={{ fontSize: 12, color: '#6b7280' }}>@ {e.location.displayName}</span>}
-                                {e.organizer?.emailAddress?.name && <span style={{ fontSize: 12, color: '#6b7280' }}>with {e.organizer.emailAddress.name}</span>}
-                              </div>
-                              {e.bodyPreview && <p style={{ margin: '5px 0 0', fontSize: 12, color: '#3d4258', lineHeight: 1.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.bodyPreview.slice(0, 140)}</p>}
-                            </div>
-                          </div>
-                        </Card>
-                      ))}
-                    </div>
+              {Object.entries(byDay).slice(0, 14).map(([key, group]) => (
+                <div key={key}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: group.isToday ? '#3AAFA9' : '#6b7280', textTransform: 'uppercase', letterSpacing: '0.6px' }}>{group.label}</span>
+                    <div style={{ flex: 1, height: 1, background: '#2a2f45' }} />
                   </div>
-                )
-              })}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {group.events.map(e => (
+                      <Card key={e.id} style={{ padding: '12px 14px' }}>
+                        <div style={{ display: 'flex', gap: 14 }}>
+                          <div style={{ minWidth: 90, color: '#3AAFA9', fontSize: 12, fontWeight: 600, paddingTop: 2, flexShrink: 0 }}>
+                            {fmt(e.start.dateTime)} &#8211; {fmt(e.end.dateTime)}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 500, color: '#e8eaf0', fontSize: 14, marginBottom: 3 }}>{e.subject}</div>
+                            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                              {e.location?.displayName && <span style={{ fontSize: 12, color: '#6b7280' }}>@ {e.location.displayName}</span>}
+                              {e.organizer?.emailAddress?.name && <span style={{ fontSize: 12, color: '#6b7280' }}>with {e.organizer.emailAddress.name}</span>}
+                            </div>
+                            {e.bodyPreview && <p style={{ margin: '5px 0 0', fontSize: 12, color: '#3d4258', lineHeight: 1.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.bodyPreview.slice(0, 140)}</p>}
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 8 }}>
           {weekDays.map(day => {
-            const isToday  = day.toDateString() === new Date().toDateString()
-            const dayEvts  = events
-              .filter(e => new Date(e.start.dateTime).toDateString() === day.toDateString())
+            const dayKey  = localDateKey(day)
+            const isToday = dayKey === todayKey
+            const dayEvts = events
+              .filter(e => e.start?.dateTime && localDateKey(new Date(e.start.dateTime)) === dayKey)
               .sort((a, b) => new Date(a.start.dateTime).getTime() - new Date(b.start.dateTime).getTime())
             return (
-              <div key={day.toISOString()} style={{ background: isToday ? 'rgba(58,175,169,0.06)' : '#1a1d27', border: `1px solid ${isToday ? 'rgba(58,175,169,0.3)' : '#2a2f45'}`, borderRadius: 10, padding: '10px 8px', minHeight: 140 }}>
+              <div key={dayKey} style={{ background: isToday ? 'rgba(58,175,169,0.06)' : '#1a1d27', border: `1px solid ${isToday ? 'rgba(58,175,169,0.3)' : '#2a2f45'}`, borderRadius: 10, padding: '10px 8px', minHeight: 140 }}>
                 <div style={{ textAlign: 'center', marginBottom: 10 }}>
                   <div style={{ fontSize: 10, fontWeight: 600, color: isToday ? '#3AAFA9' : '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{day.toLocaleDateString('en-AU', { weekday: 'short' })}</div>
                   <div style={{ fontSize: 18, fontWeight: 700, color: isToday ? '#3AAFA9' : '#e8eaf0', lineHeight: 1.3 }}>{day.getDate()}</div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {dayEvts.length === 0
-                    ? <p style={{ color: '#2a2f45', fontSize: 11, margin: 0, textAlign: 'center' }}>—</p>
+                    ? <p style={{ color: '#2a2f45', fontSize: 11, margin: 0, textAlign: 'center' }}>&#8212;</p>
                     : dayEvts.map(e => (
                         <div key={e.id} style={{ background: 'rgba(58,175,169,0.1)', borderLeft: '2px solid #3AAFA9', borderRadius: 4, padding: '3px 6px' }}>
                           <div style={{ fontSize: 10, color: '#3AAFA9', fontWeight: 600 }}>{fmt(e.start.dateTime)}</div>
@@ -914,12 +928,115 @@ function ChatTab() {
 
 // ─── SETTINGS TAB ─────────────────────────────────────────────────────────────
 function SettingsTab({ connected, onDisconnect }: { connected: boolean; onDisconnect: () => void }) {
+  const [briefingTime, setBriefingTime] = useState('08:00')
+  const [focusStart, setFocusStart]     = useState('09:00')
+  const [focusEnd, setFocusEnd]         = useState('12:00')
+  const [vipContacts, setVipContacts]   = useState<string[]>([...VIP_CLIENTS])
+  const [newContact, setNewContact]     = useState('')
+  const [saved, setSaved]               = useState(false)
+
+  // Read localStorage after mount (SSR-safe)
+  useEffect(() => {
+    setBriefingTime(localStorage.getItem('pref_briefing_time') || '08:00')
+    setFocusStart(localStorage.getItem('pref_focus_start')    || '09:00')
+    setFocusEnd(localStorage.getItem('pref_focus_end')        || '12:00')
+    try {
+      const raw = localStorage.getItem('pref_vip_contacts')
+      if (raw) setVipContacts(JSON.parse(raw))
+    } catch {}
+  }, [])
+
+  function savePrefs() {
+    localStorage.setItem('pref_briefing_time',  briefingTime)
+    localStorage.setItem('pref_focus_start',    focusStart)
+    localStorage.setItem('pref_focus_end',      focusEnd)
+    localStorage.setItem('pref_vip_contacts',   JSON.stringify(vipContacts))
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  function addContact() {
+    const c = newContact.trim()
+    if (c && !vipContacts.includes(c)) { setVipContacts(p => [...p, c]); setNewContact('') }
+  }
+
   async function disconnect() {
     await authFetch(`${SUPABASE_FUNCTIONS_URL}/ms-auth?action=disconnect`)
     onDisconnect()
   }
+
+  const archiveRules = [
+    { label: 'No-reply senders',       pattern: 'noreply@*,  no-reply@*' },
+    { label: 'Notification services',  pattern: 'notifications@*' },
+    { label: 'SharePoint / Teams',     pattern: '*@sharepoint.com, *@teams.microsoft.com' },
+    { label: 'n8n automation',         pattern: '*@n8n.io' },
+    { label: 'Microsoft system mail',  pattern: '*@microsoft.com' },
+  ]
+
+  const labelStyle: React.CSSProperties = { fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 6 }
+
   return (
-    <div style={{ maxWidth: 560, display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ maxWidth: 600, display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+      {/* Briefing Preferences */}
+      <Card>
+        <h3 style={{ margin: '0 0 16px', fontSize: 13, fontWeight: 600, color: '#3AAFA9', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Briefing Preferences</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <label style={labelStyle}>Daily Briefing Time</label>
+            <input type="time" value={briefingTime} onChange={e => setBriefingTime(e.target.value)} style={{ ...inputStyle, maxWidth: 160 }} />
+          </div>
+          <div>
+            <label style={labelStyle}>Focus Block Window</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <input type="time" value={focusStart} onChange={e => setFocusStart(e.target.value)} style={{ ...inputStyle, maxWidth: 140 }} />
+              <span style={{ color: '#6b7280', fontSize: 13 }}>to</span>
+              <input type="time" value={focusEnd}   onChange={e => setFocusEnd(e.target.value)}   style={{ ...inputStyle, maxWidth: 140 }} />
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* VIP Clients */}
+      <Card>
+        <h3 style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 600, color: '#C9A96E', textTransform: 'uppercase', letterSpacing: '0.8px' }}>VIP Clients</h3>
+        <p style={{ margin: '0 0 12px', fontSize: 12, color: '#6b7280' }}>Treated as VIP in Email and Clients tabs. Changes apply on next page load.</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+          {vipContacts.map(name => (
+            <div key={name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 10px', background: '#0f1117', border: '1px solid #2a2f45', borderRadius: 7 }}>
+              <span style={{ fontSize: 13, color: '#e8eaf0' }}>{name}</span>
+              <button onClick={() => setVipContacts(p => p.filter(c => c !== name))} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '0 2px' }}>&#x2715;</button>
+            </div>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input value={newContact} onChange={e => setNewContact(e.target.value)} onKeyDown={e => e.key === 'Enter' && addContact()} placeholder="Add client name..." style={{ ...inputStyle, flex: 1 }} />
+          <button onClick={addContact} disabled={!newContact.trim()} style={{ ...primaryBtnStyle, opacity: newContact.trim() ? 1 : 0.5 }}>Add</button>
+        </div>
+      </Card>
+
+      {/* Auto-archive Rules */}
+      <Card>
+        <h3 style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 600, color: '#3AAFA9', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Auto-archive Rules</h3>
+        <p style={{ margin: '0 0 12px', fontSize: 12, color: '#6b7280' }}>Emails matching these patterns are routed to the Tools filter automatically.</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {archiveRules.map(r => (
+            <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: '#0f1117', border: '1px solid #2a2f45', borderRadius: 7 }}>
+              <span style={{ fontSize: 13, color: '#e8eaf0' }}>{r.label}</span>
+              <span style={{ fontSize: 11, color: '#3d4258', fontFamily: 'monospace' }}>{r.pattern}</span>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {/* Save */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <button onClick={savePrefs} style={{ ...primaryBtnStyle, minWidth: 140 }}>
+          {saved ? 'Saved &#10003;' : 'Save Preferences'}
+        </button>
+      </div>
+
+      {/* Microsoft Connection */}
       <Card>
         <h3 style={{ margin: '0 0 14px', fontSize: 13, fontWeight: 600, color: '#3AAFA9', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Microsoft Connection</h3>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -930,6 +1047,8 @@ function SettingsTab({ connected, onDisconnect }: { connected: boolean; onDiscon
           {connected && <button onClick={disconnect} style={{ padding: '8px 14px', background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontFamily: "'DM Sans', sans-serif" }}>Disconnect</button>}
         </div>
       </Card>
+
+      {/* About */}
       <Card>
         <h3 style={{ margin: '0 0 14px', fontSize: 13, fontWeight: 600, color: '#3AAFA9', textTransform: 'uppercase', letterSpacing: '0.8px' }}>About</h3>
         <p style={{ margin: 0, fontSize: 13, color: '#6b7280', lineHeight: 1.6 }}>
