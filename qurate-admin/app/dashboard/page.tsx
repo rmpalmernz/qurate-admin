@@ -908,7 +908,7 @@ function CalendarTab({ events, tasks }: { events: CalendarEvent[]; tasks: Eisenh
 
   // Build day groups: events + tasks together, sorted by date
   type DayGroup = { label: string; isToday: boolean; events: CalendarEvent[]; tasks: EisenhowerTask[] }
-  const byDay = new Map<string, DayGroup>()
+  const byDay: Record<string, DayGroup> = {}
 
   const mkGroup = (key: string): DayGroup => {
     const isToday = key === todayKey
@@ -923,17 +923,17 @@ function CalendarTab({ events, tasks }: { events: CalendarEvent[]; tasks: Eisenh
     .sort((a, b) => evtStart(a).getTime() - evtStart(b).getTime())
     .forEach(e => {
       const key = localDateKey(evtStart(e))
-      if (!byDay.has(key)) byDay.set(key, mkGroup(key))
-      byDay.get(key)!.events.push(e)
+      if (!byDay[key]) byDay[key] = mkGroup(key)
+      byDay[key].events.push(e)
     })
 
   tasks.filter(t => t.due_date).forEach(t => {
     const key = t.due_date!
-    if (!byDay.has(key)) byDay.set(key, mkGroup(key))
-    byDay.get(key)!.tasks.push(t)
+    if (!byDay[key]) byDay[key] = mkGroup(key)
+    byDay[key].tasks.push(t)
   })
 
-  const sortedDays = [...byDay.entries()].sort(([a], [b]) => a.localeCompare(b))
+  const sortedDays = Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b))
 
   // Mon–Sun for current week
   const weekDays = (() => {
