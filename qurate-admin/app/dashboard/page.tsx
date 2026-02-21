@@ -292,6 +292,113 @@ function BriefingTab({ events, tasks, emails }: { events: CalendarEvent[]; tasks
   )
 }
 
+// ─── SWIPEABLE EMAIL ROW (Outlook-style) ─────────────────────────────────────
+function SwipeableEmailRow({ email, selected, onSelect, onArchive }: {
+  email: Email; selected: boolean; onSelect: () => void; onArchive: () => void
+}) {
+  const [swipeX, setSwipeX] = useState(0)
+  const [snap, setSnap]     = useState(false)
+  const startX  = useRef(0)
+  const startY  = useRef(0)
+  const lastDx  = useRef(0)
+  const isHoriz = useRef<boolean | null>(null)
+
+  const q      = emailToQuadrant(email)
+  const qCfg   = quadrantConfig[q]
+  const letter = (email.from?.name || email.from?.address || '?')[0].toUpperCase()
+  const COLORS  = ['#ef4444','#3AAFA9','#C9A96E','#8b5cf6','#f59e0b','#06b6d4']
+  const aColor  = COLORS[(email.from?.address?.charCodeAt(0) ?? 65) % COLORS.length]
+
+  function handleTouchStart(e: React.TouchEvent) {
+    startX.current  = e.touches[0].clientX
+    startY.current  = e.touches[0].clientY
+    lastDx.current  = 0
+    isHoriz.current = null
+    setSnap(false)
+  }
+
+  function handleTouchMove(e: React.TouchEvent) {
+    const dx = e.touches[0].clientX - startX.current
+    const dy = e.touches[0].clientY - startY.current
+    if (isHoriz.current === null && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
+      isHoriz.current = Math.abs(dx) > Math.abs(dy)
+    }
+    if (!isHoriz.current) return
+    lastDx.current = dx
+    setSwipeX(Math.max(-130, Math.min(60, dx)))
+  }
+
+  function handleTouchEnd() {
+    setSnap(true)
+    if (lastDx.current < -90) {
+      setSwipeX(-500)
+      setTimeout(() => { onArchive() }, 280)
+    } else {
+      setSwipeX(0)
+    }
+    isHoriz.current = null
+  }
+
+  return (
+    <div style={{ position: 'relative', overflow: 'hidden', marginBottom: 1 }}>
+      {/* Archive reveal — shown as row slides left */}
+      <div style={{
+        position: 'absolute', inset: 0, background: '#dc2626',
+        display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 24,
+        opacity: swipeX < -15 ? Math.min(1, (-swipeX - 15) / 50) : 0,
+      }}>
+        <span style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>Archive</span>
+      </div>
+
+      {/* Row */}
+      <div
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onClick={() => { if (Math.abs(lastDx.current) < 8) onSelect() }}
+        style={{
+          background: selected ? '#22263a' : '#1a1d27',
+          borderBottom: '1px solid #1e2235',
+          borderLeft: `3px solid ${qCfg.color}`,
+          padding: '12px 14px',
+          display: 'flex', gap: 12, alignItems: 'flex-start',
+          cursor: 'pointer',
+          transform: `translateX(${swipeX}px)`,
+          transition: snap ? 'transform 0.26s cubic-bezier(0.4,0,0.2,1)' : 'none',
+          willChange: 'transform',
+          touchAction: 'pan-y',
+          WebkitTapHighlightColor: 'transparent',
+          userSelect: 'none',
+        }}
+      >
+        {/* Avatar */}
+        <div style={{ width: 40, height: 40, borderRadius: '50%', background: aColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 16, color: '#fff', flexShrink: 0, position: 'relative' }}>
+          {letter}
+          {!email.isRead && <span style={{ position: 'absolute', top: 0, right: 0, width: 10, height: 10, borderRadius: '50%', background: '#3AAFA9', border: '2px solid #1a1d27' }} />}
+        </div>
+        {/* Content */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 2 }}>
+            <span style={{ fontWeight: email.isRead ? 400 : 700, fontSize: 14, color: '#e8eaf0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, marginRight: 8 }}>
+              {email.from?.name || email.from?.address || 'Unknown'}
+            </span>
+            <span style={{ color: '#6b7280', fontSize: 11, whiteSpace: 'nowrap', flexShrink: 0 }}>{timeAgo(email.receivedDateTime)}</span>
+          </div>
+          <div style={{ fontSize: 13, color: email.isRead ? '#8892a4' : '#c0c8d8', fontWeight: email.isRead ? 400 : 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 3 }}>
+            {email.subject}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 12, color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+              {email.ai_original_email_summary ? email.ai_original_email_summary.slice(0, 80) : email.bodyPreview?.slice(0, 80)}
+            </span>
+            <QuadrantBadge quadrant={q} />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── EMAIL TAB ────────────────────────────────────────────────────────────────
 function EmailTab({ emails, loading, onRefresh }: { emails: Email[]; loading: boolean; onRefresh: () => void }) {
   const [selected, setSelected]       = useState<Email | null>(null)
@@ -306,7 +413,15 @@ function EmailTab({ emails, loading, onRefresh }: { emails: Email[]; loading: bo
   const [sendConfirm, setSendConfirm] = useState(false)
   const [sending, setSending]         = useState(false)
   const [msToken, setMsToken]         = useState<string | null>(null)
+  const [isMobile, setIsMobile]       = useState(false)
   const draftFnRef = useRef<(e: Email) => void>(() => {})
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth <= 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   useEffect(() => { getMsToken().then(setMsToken) }, [])
 
@@ -380,108 +495,196 @@ function EmailTab({ emails, loading, onRefresh }: { emails: Email[]; loading: bo
 
   const pc = (p?: string) => p === 'high' ? '#ef4444' : p === 'medium' ? '#C9A96E' : '#6b7280'
 
-  const pill = (key: typeof filter, label: string) => (
-    <button key={key} onClick={() => setFilter(key)} style={{ padding: '5px 12px', borderRadius: 20, border: 'none', fontSize: 12, background: filter === key ? 'rgba(58,175,169,0.15)' : 'transparent', color: filter === key ? '#3AAFA9' : '#6b7280', fontWeight: filter === key ? 600 : 400, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-      {label} <span style={{ opacity: 0.6 }}>({counts[key]})</span>
-    </button>
+  // Shared detail body — called as a function (not JSX component) to avoid remount
+  function renderDetail(email: Email) {
+    const COLORS = ['#ef4444','#3AAFA9','#C9A96E','#8b5cf6','#f59e0b','#06b6d4']
+    const aColor = COLORS[(email.from?.address?.charCodeAt(0) ?? 65) % COLORS.length]
+    const letter = (email.from?.name || email.from?.address || '?')[0].toUpperCase()
+    return (
+      <>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 16 }}>
+          <div style={{ width: 44, height: 44, borderRadius: '50%', background: aColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 18, color: '#fff', flexShrink: 0 }}>
+            {letter}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ margin: '0 0 2px', fontSize: 14, fontWeight: 600, color: '#e8eaf0' }}>{email.from?.name || 'Unknown'}</p>
+            <p style={{ margin: '0 0 2px', fontSize: 12, color: '#6b7280' }}>{email.from?.address}</p>
+            <p style={{ margin: 0, fontSize: 11, color: '#3d4258' }}>
+              {new Date(email.receivedDateTime).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+            </p>
+          </div>
+        </div>
+        <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 600, color: '#e8eaf0', lineHeight: 1.4 }}>{email.subject}</h3>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16, paddingBottom: 16, borderBottom: '1px solid #2a2f45' }}>
+          <QuadrantBadge quadrant={emailToQuadrant(email)} />
+          {email.ai_category && <Badge text={email.ai_category} color="#3AAFA9" />}
+          {email.ai_priority_level && <Badge text={email.ai_priority_level} color={pc(email.ai_priority_level)} />}
+        </div>
+        {email.ai_original_email_summary && (
+          <div style={{ background: 'rgba(58,175,169,0.06)', border: '1px solid rgba(58,175,169,0.15)', borderRadius: 8, padding: '10px 12px', marginBottom: 16 }}>
+            <p style={{ margin: '0 0 4px', fontSize: 11, fontWeight: 600, color: '#3AAFA9', textTransform: 'uppercase', letterSpacing: '0.5px' }}>AI Summary</p>
+            <p style={{ margin: 0, fontSize: 13, color: '#b0b8cc', lineHeight: 1.6 }}>{email.ai_original_email_summary}</p>
+          </div>
+        )}
+        <p style={{ fontSize: 13, color: '#8892a4', lineHeight: 1.75, marginBottom: 16 }}>{email.bodyPreview}</p>
+        {draft && (
+          <div style={{ background: '#22263a', border: '1px solid #2a2f45', borderRadius: 8, padding: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: '#C9A96E', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Draft Reply</p>
+              <button onClick={() => setSendConfirm(true)} style={{ padding: '5px 12px', background: 'linear-gradient(135deg, #3AAFA9, #2E9E98)', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Send</button>
+            </div>
+            <textarea value={draft} onChange={e => setDraft(e.target.value)} style={{ width: '100%', minHeight: 130, background: 'transparent', border: 'none', color: '#b0b8cc', fontSize: 13, lineHeight: 1.6, resize: 'vertical', outline: 'none', fontFamily: "'DM Sans', sans-serif" }} />
+          </div>
+        )}
+      </>
+    )
+  }
+
+  const filterBar = (
+    <div style={{ display: 'flex', gap: 2, overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: 2, touchAction: 'pan-x' }}>
+      {(['all', 'q1', 'vip', 'tools', 'other'] as const).map(key => {
+        const labels = { all: 'All', q1: 'Urgent', vip: 'VIP', tools: 'Tools', other: 'Other' }
+        return (
+          <button key={key} onClick={() => setFilter(key)} style={{ padding: '5px 12px', borderRadius: 20, border: 'none', fontSize: 12, background: filter === key ? 'rgba(58,175,169,0.15)' : 'transparent', color: filter === key ? '#3AAFA9' : '#6b7280', fontWeight: filter === key ? 600 : 400, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>
+            {labels[key]} <span style={{ opacity: 0.6 }}>({counts[key]})</span>
+          </button>
+        )
+      })}
+    </div>
   )
 
   return (
-    <div className={selected ? 'email-grid email-grid--split' : 'email-grid'} style={{ gap: 16, alignItems: 'start' }}>
+    <div style={{ position: 'relative' }}>
+      <div className={selected && !isMobile ? 'email-grid email-grid--split' : 'email-grid'} style={{ gap: 16, alignItems: 'start' }}>
 
-      {/* List column */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-          <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-            {pill('all', 'All')} {pill('q1', 'Urgent')} {pill('vip', 'VIP')} {pill('tools', 'Tools')} {pill('other', 'Other')}
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={onRefresh} style={{ padding: '6px 12px', background: 'transparent', color: '#6b7280', border: '1px solid #2a2f45', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Refresh</button>
-            <button onClick={() => setComposeOpen(true)} style={{ padding: '6px 14px', background: 'rgba(58,175,169,0.12)', color: '#3AAFA9', border: '1px solid rgba(58,175,169,0.3)', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>+ Compose</button>
-          </div>
-        </div>
-
-        <div style={{ fontSize: 11, color: '#3d4258', paddingLeft: 2 }}>
-          Shortcuts:&nbsp;
-          <kbd style={{ background: '#22263a', padding: '1px 5px', borderRadius: 3, fontSize: 10, color: '#6b7280' }}>E</kbd> archive&nbsp;&nbsp;
-          <kbd style={{ background: '#22263a', padding: '1px 5px', borderRadius: 3, fontSize: 10, color: '#6b7280' }}>R</kbd> reply&nbsp;&nbsp;
-          <kbd style={{ background: '#22263a', padding: '1px 5px', borderRadius: 3, fontSize: 10, color: '#6b7280' }}>Esc</kbd> close
-        </div>
-
-        {loading ? <Spinner /> : visible.length === 0 ? (
-          <Card><p style={{ color: '#6b7280', margin: 0, fontSize: 13 }}>No emails in this view.</p></Card>
-        ) : visible.map(email => {
-          const q    = emailToQuadrant(email)
-          const qCfg = quadrantConfig[q]
-          const sel  = selected?.id === email.id
-          return (
-            <div key={email.id} onClick={() => { setSelected(sel ? null : email); if (!sel) setDraft('') }}
-              style={{ background: sel ? '#22263a' : '#1a1d27', border: `1px solid ${sel ? '#3AAFA9' : '#2a2f45'}`, borderLeft: `3px solid ${qCfg.color}`, borderRadius: 10, padding: '11px 14px', cursor: 'pointer', transition: 'all 0.15s' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 3 }}>
-                <div style={{ display: 'flex', gap: 7, alignItems: 'center', flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
-                  {!email.isRead && <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3AAFA9', flexShrink: 0 }} />}
-                  <span style={{ fontWeight: email.isRead ? 400 : 600, fontSize: 13, color: '#e8eaf0' }}>{email.from?.name || email.from?.address || 'Unknown sender'}</span>
-                  <QuadrantBadge quadrant={q} />
-                  {email.ai_client_name && <Badge text={email.ai_client_name} color="#3AAFA9" />}
-                </div>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0, marginLeft: 8 }}>
-                  <span style={{ color: '#6b7280', fontSize: 11 }}>{timeAgo(email.receivedDateTime)}</span>
-                  <button onClick={ev => { ev.stopPropagation(); archiveEmail(email.id) }} title="Archive (E)" style={{ background: 'none', border: 'none', color: '#3d4258', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '0 2px' }}>&#x2715;</button>
-                </div>
+        {/* ── List column ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+            {filterBar}
+            {!isMobile && (
+              <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                <button onClick={onRefresh} style={{ padding: '6px 12px', background: 'transparent', color: '#6b7280', border: '1px solid #2a2f45', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Refresh</button>
+                <button onClick={() => setComposeOpen(true)} style={{ padding: '6px 14px', background: 'rgba(58,175,169,0.12)', color: '#3AAFA9', border: '1px solid rgba(58,175,169,0.3)', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>+ Compose</button>
               </div>
-              <div style={{ fontWeight: email.isRead ? 400 : 500, fontSize: 13, color: '#c0c8d8', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{email.subject}</div>
-              {email.ai_original_email_summary
-                ? <div style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.5 }}>AI: {email.ai_original_email_summary.slice(0, 110)}...</div>
-                : <div style={{ fontSize: 12, color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{email.bodyPreview?.slice(0, 100)}</div>}
+            )}
+          </div>
+
+          {!isMobile && (
+            <div style={{ fontSize: 11, color: '#3d4258', paddingLeft: 2 }}>
+              Shortcuts:&nbsp;
+              <kbd style={{ background: '#22263a', padding: '1px 5px', borderRadius: 3, fontSize: 10, color: '#6b7280' }}>E</kbd> archive&nbsp;&nbsp;
+              <kbd style={{ background: '#22263a', padding: '1px 5px', borderRadius: 3, fontSize: 10, color: '#6b7280' }}>R</kbd> reply&nbsp;&nbsp;
+              <kbd style={{ background: '#22263a', padding: '1px 5px', borderRadius: 3, fontSize: 10, color: '#6b7280' }}>Esc</kbd> close
             </div>
-          )
-        })}
+          )}
+
+          {isMobile && (
+            <p style={{ margin: 0, fontSize: 11, color: '#3d4258', paddingLeft: 2 }}>Swipe left to archive</p>
+          )}
+
+          {loading ? <Spinner /> : visible.length === 0 ? (
+            <Card><p style={{ color: '#6b7280', margin: 0, fontSize: 13 }}>No emails in this view.</p></Card>
+          ) : (
+            <div style={{ touchAction: 'pan-y' }}>
+              {visible.map(email => (
+                <SwipeableEmailRow
+                  key={email.id}
+                  email={email}
+                  selected={selected?.id === email.id}
+                  onSelect={() => { setSelected(selected?.id === email.id ? null : email); setDraft('') }}
+                  onArchive={() => archiveEmail(email.id)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ── Desktop detail panel ── */}
+        {selected && !isMobile && (
+          <Card style={{ position: 'sticky', top: 72, alignSelf: 'start', maxHeight: 'calc(100vh - 96px)', overflow: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
+              <button onClick={() => { setSelected(null); setDraft('') }} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: 20 }}>&#x2715;</button>
+            </div>
+            {renderDetail(selected)}
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <button onClick={() => draftReply(selected)} disabled={drafting} style={{ flex: 1, padding: '9px 14px', background: 'rgba(58,175,169,0.12)', color: '#3AAFA9', border: '1px solid rgba(58,175,169,0.3)', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: drafting ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                {drafting ? 'Drafting...' : 'Draft AI Reply'}
+              </button>
+              <button onClick={() => archiveEmail(selected.id)} style={{ padding: '9px 14px', background: 'transparent', color: '#6b7280', border: '1px solid #2a2f45', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Archive</button>
+            </div>
+          </Card>
+        )}
       </div>
 
-      {/* Detail panel */}
-      {selected && (
-        <Card style={{ position: 'sticky', top: 72, alignSelf: 'start', maxHeight: 'calc(100vh - 96px)', overflow: 'auto' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14, gap: 12 }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <h3 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 600, color: '#e8eaf0', lineHeight: 1.4 }}>{selected.subject}</h3>
-              <p style={{ margin: 0, fontSize: 12, color: '#6b7280' }}>From: {selected.from?.name || 'Unknown'} {selected.from?.address ? `<${selected.from.address}>` : ''}</p>
-              <p style={{ margin: '3px 0 0', fontSize: 11, color: '#3d4258' }}>{new Date(selected.receivedDateTime).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
-            </div>
-            <button onClick={() => { setSelected(null); setDraft('') }} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: 20, flexShrink: 0 }}>&#x2715;</button>
-          </div>
-
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-            <QuadrantBadge quadrant={emailToQuadrant(selected)} />
-            {selected.ai_category && <Badge text={selected.ai_category} color="#3AAFA9" />}
-            {selected.ai_priority_level && <Badge text={selected.ai_priority_level} color={pc(selected.ai_priority_level)} />}
-          </div>
-
-          {selected.ai_original_email_summary && (
-            <div style={{ background: 'rgba(58,175,169,0.06)', border: '1px solid rgba(58,175,169,0.15)', borderRadius: 8, padding: '10px 12px', marginBottom: 14 }}>
-              <p style={{ margin: '0 0 4px', fontSize: 11, fontWeight: 600, color: '#3AAFA9', textTransform: 'uppercase', letterSpacing: '0.5px' }}>AI Summary</p>
-              <p style={{ margin: 0, fontSize: 13, color: '#b0b8cc', lineHeight: 1.6 }}>{selected.ai_original_email_summary}</p>
-            </div>
-          )}
-
-          <p style={{ fontSize: 13, color: '#8892a4', lineHeight: 1.75, marginBottom: 16 }}>{selected.bodyPreview}</p>
-
-          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-            <button onClick={() => draftReply(selected)} disabled={drafting} style={{ flex: 1, padding: '9px 14px', background: 'rgba(58,175,169,0.12)', color: '#3AAFA9', border: '1px solid rgba(58,175,169,0.3)', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: drafting ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-              {drafting ? 'Drafting...' : 'Draft AI Reply'}
+      {/* ── Mobile: full-screen detail (Outlook-style slide from right) ── */}
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 300,
+        background: '#0f1117',
+        transform: (selected && isMobile) ? 'translateX(0)' : 'translateX(100%)',
+        transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1)',
+        display: 'flex', flexDirection: 'column',
+        overflow: 'hidden',
+        touchAction: 'pan-y',
+        pointerEvents: (selected && isMobile) ? 'auto' : 'none',
+      }}>
+        {/* Nav header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 56, padding: '0 16px', background: '#1a1d27', borderBottom: '1px solid #2a2f45', flexShrink: 0 }}>
+          <button
+            onClick={() => { setSelected(null); setDraft('') }}
+            style={{ background: 'none', border: 'none', color: '#3AAFA9', fontSize: 17, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", display: 'flex', alignItems: 'center', gap: 4, padding: '8px 0', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+          >
+            ‹ Inbox
+          </button>
+          {selected && (
+            <button
+              onClick={() => archiveEmail(selected.id)}
+              style={{ background: 'none', border: 'none', color: '#6b7280', fontSize: 13, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", padding: '8px 0', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+            >
+              Archive
             </button>
-            <button onClick={() => archiveEmail(selected.id)} style={{ padding: '9px 14px', background: 'transparent', color: '#6b7280', border: '1px solid #2a2f45', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Archive</button>
-          </div>
-
-          {draft && (
-            <div style={{ background: '#22263a', border: '1px solid #2a2f45', borderRadius: 8, padding: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: '#C9A96E', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Draft Reply</p>
-                <button onClick={() => setSendConfirm(true)} style={{ padding: '5px 12px', background: 'linear-gradient(135deg, #3AAFA9, #2E9E98)', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Send</button>
-              </div>
-              <textarea value={draft} onChange={e => setDraft(e.target.value)} style={{ width: '100%', minHeight: 130, background: 'transparent', border: 'none', color: '#b0b8cc', fontSize: 13, lineHeight: 1.6, resize: 'vertical', outline: 'none', fontFamily: "'DM Sans', sans-serif" }} />
-            </div>
           )}
-        </Card>
+        </div>
+
+        {/* Scrollable body */}
+        <div style={{ flex: 1, overflow: 'auto', padding: '20px 16px 140px', WebkitOverflowScrolling: 'touch' }}>
+          {selected && renderDetail(selected)}
+        </div>
+
+        {/* Bottom action bar */}
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '12px 16px', paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 0px))', background: '#1a1d27', borderTop: '1px solid #2a2f45', display: 'flex', gap: 12 }}>
+          <button
+            onClick={() => selected && draftReply(selected)}
+            disabled={drafting}
+            style={{ flex: 1, padding: '13px 16px', background: 'linear-gradient(135deg, #3AAFA9, #2E9E98)', color: '#fff', border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 600, cursor: drafting ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif", touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+          >
+            {drafting ? 'Drafting...' : '✦ AI Reply'}
+          </button>
+          <button
+            onClick={() => setSendConfirm(true)}
+            disabled={!draft}
+            style={{ padding: '13px 18px', background: draft ? 'rgba(58,175,169,0.12)' : 'transparent', color: draft ? '#3AAFA9' : '#3d4258', border: `1px solid ${draft ? 'rgba(58,175,169,0.3)' : '#2a2f45'}`, borderRadius: 10, fontSize: 15, cursor: draft ? 'pointer' : 'default', fontFamily: "'DM Sans', sans-serif", touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+          >
+            Send
+          </button>
+        </div>
+      </div>
+
+      {/* ── FAB — compose (mobile only) ── */}
+      {isMobile && !selected && (
+        <button
+          onClick={() => setComposeOpen(true)}
+          style={{
+            position: 'fixed', right: 20,
+            bottom: 'calc(72px + env(safe-area-inset-bottom, 0px))',
+            width: 56, height: 56, borderRadius: '50%',
+            background: 'linear-gradient(135deg, #3AAFA9, #2E9E98)',
+            color: '#fff', border: 'none', fontSize: 30,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 4px 20px rgba(58,175,169,0.45)',
+            cursor: 'pointer', zIndex: 150,
+            touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
+          }}
+        >+</button>
       )}
 
       {/* Compose modal */}
@@ -499,7 +702,7 @@ function EmailTab({ emails, loading, onRefresh }: { emails: Email[]; loading: bo
         </Modal>
       )}
 
-      {/* Send confirmation modal */}
+      {/* Send confirmation */}
       {sendConfirm && (
         <Modal title="Confirm Send" onClose={() => setSendConfirm(false)}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
