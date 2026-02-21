@@ -1071,8 +1071,26 @@ function SettingsTab({ connected, onDisconnect }: { connected: boolean; onDiscon
 }
 
 // ─── MAIN DASHBOARD ───────────────────────────────────────────────────────────
+const TAB_TITLES: Record<string, string> = {
+  briefing: 'Briefing', email: 'Inbox', calendar: 'Calendar',
+  matrix: 'Tasks', clients: 'Clients', chat: 'AI Chat', settings: 'Settings',
+}
+
+type Tab = 'briefing'|'email'|'calendar'|'matrix'|'clients'|'chat'|'settings'
+
+// Simple SVG icons for bottom nav
+function NavIcon({ name }: { name: Tab }) {
+  const s = { width: 22, height: 22, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5 }
+  if (name === 'briefing') return <svg {...s} strokeLinecap="round" strokeLinejoin="round"><path d="M3 12L12 3l9 9"/><path d="M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1V10"/></svg>
+  if (name === 'email')    return <svg {...s} strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 8l10 6 10-6"/></svg>
+  if (name === 'calendar') return <svg {...s} strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>
+  if (name === 'matrix')   return <svg {...s} strokeLinecap="round"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>
+  if (name === 'clients')  return <svg {...s} strokeLinecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+  if (name === 'chat')     return <svg {...s} strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+  /* settings */           return <svg {...s} strokeLinecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v2m0 16v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M2 12h2m16 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+}
 export default function Dashboard() {
-  const [tab, setTab]           = useState<'briefing'|'email'|'calendar'|'matrix'|'clients'|'chat'|'settings'>('briefing')
+  const [tab, setTab]           = useState<Tab>('briefing')
   const [emails, setEmails]     = useState<Email[]>([])
   const [events, setEvents]     = useState<CalendarEvent[]>([])
   const [tasks, setTasks]       = useState<EisenhowerTask[]>([])
@@ -1129,25 +1147,31 @@ export default function Dashboard() {
   const unread       = emails.filter(e => !e.isRead).length
   const todayEvtCount = events.filter(e => (e.start?.dateTime || e.start?.date) && localDateKey(evtStart(e)) === localDateKey(new Date())).length
 
+  const q1Count = tasks.filter(t => t.quadrant === 'do').length
+
+  const navItems: Array<{ key: Tab; label: string; badge?: number }> = [
+    { key: 'briefing',  label: 'Brief' },
+    { key: 'email',     label: 'Mail',     badge: unread || undefined },
+    { key: 'calendar',  label: 'Calendar', badge: todayEvtCount || undefined },
+    { key: 'matrix',    label: 'Tasks',    badge: q1Count || undefined },
+    { key: 'clients',   label: 'Clients' },
+    { key: 'chat',      label: 'Chat' },
+    { key: 'settings',  label: 'Settings' },
+  ]
+
   return (
     <div style={{ minHeight: '100vh', background: '#0f1117', fontFamily: "'DM Sans', sans-serif" }}>
+
+      {/* Static top header — logo left, current section title right */}
       <div className="dash-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          <div style={{ width: 28, height: 28, background: 'linear-gradient(135deg, #3AAFA9, #C9A96E)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#fff' }}>Q</div>
-          <span className="hide-mobile" style={{ fontSize: 15, fontWeight: 600, color: '#e8eaf0' }}>Admin Agent</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 30, height: 30, background: 'linear-gradient(135deg, #3AAFA9, #C9A96E)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, color: '#fff', flexShrink: 0 }}>Q</div>
+          <span style={{ fontSize: 15, fontWeight: 700, color: '#3AAFA9', letterSpacing: '-0.3px' }}>Qurate</span>
         </div>
-        <div className="tab-bar">
-          <TabBtn active={tab === 'briefing'} onClick={() => setTab('briefing')}>Briefing</TabBtn>
-          <TabBtn active={tab === 'email'}    onClick={() => setTab('email')}>Email{unread > 0 ? ` (${unread})` : ''}</TabBtn>
-          <TabBtn active={tab === 'calendar'} onClick={() => setTab('calendar')}>Cal{todayEvtCount > 0 ? ` (${todayEvtCount})` : ''}</TabBtn>
-          <TabBtn active={tab === 'matrix'}   onClick={() => setTab('matrix')}>Matrix{tasks.filter(t => t.quadrant === 'do').length > 0 ? ` (${tasks.filter(t => t.quadrant === 'do').length})` : ''}</TabBtn>
-          <TabBtn active={tab === 'clients'}  onClick={() => setTab('clients')}>Clients</TabBtn>
-          <TabBtn active={tab === 'chat'}     onClick={() => setTab('chat')}>Chat</TabBtn>
-          <TabBtn active={tab === 'settings'} onClick={() => setTab('settings')}>Settings</TabBtn>
-        </div>
-        <div className="hide-mobile" style={{ fontSize: 12, color: '#6b7280', flexShrink: 0 }}>{new Date().toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}</div>
+        <span style={{ fontSize: 16, fontWeight: 600, color: '#e8eaf0' }}>{TAB_TITLES[tab]}</span>
       </div>
 
+      {/* Scrollable content */}
       <div className="main-content">
         {tab === 'briefing'  && <BriefingTab events={events} tasks={tasks} emails={emails} />}
         {tab === 'email'     && <EmailTab emails={emails} loading={emailLoading} onRefresh={loadEmails} />}
@@ -1157,6 +1181,17 @@ export default function Dashboard() {
         {tab === 'chat'      && <ChatTab />}
         {tab === 'settings'  && <SettingsTab connected={connected} onDisconnect={() => { setConnected(false); window.location.href = '/' }} />}
       </div>
+
+      {/* Fixed bottom navigation — Outlook-style */}
+      <nav className="bottom-nav">
+        {navItems.map(item => (
+          <button key={item.key} className={`bottom-nav-item${tab === item.key ? ' active' : ''}`} onClick={() => setTab(item.key)}>
+            <NavIcon name={item.key} />
+            <span>{item.label}</span>
+            {item.badge ? <span className="nav-badge">{item.badge > 99 ? '99+' : item.badge}</span> : null}
+          </button>
+        ))}
+      </nav>
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
