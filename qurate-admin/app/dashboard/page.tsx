@@ -46,6 +46,13 @@ interface EisenhowerTask {
   estimated_minutes?: number
   notes?: string
   source_email_ids?: string[]
+  delegated_to?: string
+  delegation_channel?: string
+  source_type?: string
+  tags?: string[]
+  priority_score?: number
+  created_at?: string
+  updated_at?: string
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -748,6 +755,7 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
   const [completing, setCompleting]     = useState<string | null>(null)
   const [deleting, setDeleting]         = useState<string | null>(null)
   const [menuId, setMenuId]             = useState<string | null>(null)
+  const [detailTask, setDetailTask]     = useState<EisenhowerTask | null>(null)
 
   // ── Completed tasks ───────────────────────────────────────────────────────
   const [showDone, setShowDone]         = useState(false)
@@ -1028,7 +1036,7 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
                           dragIdRef.current = null
                           setDragId(null); setDragOver(null); setDropTargetId(null)
                         }}
-                        onClick={e => e.stopPropagation()}
+                        onClick={e => { e.stopPropagation(); if (!dragIdRef.current) setDetailTask(t) }}
                         style={{
                           background: isDropTarget ? cfg.color + '18' : '#1a1d27',
                           border: `1px solid ${isDropTarget ? cfg.color : (isMenu ? cfg.color : '#2a2f45')}`,
@@ -1151,6 +1159,89 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
           {taskForm(true)}
         </Modal>
       )}
+
+      {/* ── Task Detail modal ── */}
+      {detailTask && (() => {
+        const t   = detailTask
+        const cfg = quadrantConfig[t.quadrant]
+        const statusColors: Record<string, string> = {
+          open: '#3AAFA9', in_progress: '#C9A96E', waiting: '#6b7280', done: '#22c55e', cancelled: '#ef4444',
+        }
+        const statusColor = statusColors[t.status] || '#6b7280'
+        const Row = ({ label, value }: { label: string; value: React.ReactNode }) => (
+          <div style={{ display: 'flex', gap: 12, padding: '8px 0', borderBottom: '1px solid #1e2235' }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', minWidth: 110, paddingTop: 1 }}>{label}</span>
+            <span style={{ fontSize: 13, color: '#b0b8cc', flex: 1 }}>{value}</span>
+          </div>
+        )
+        return (
+          <Modal title="" onClose={() => setDetailTask(null)}>
+            {/* Title + quadrant */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 4, background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}>
+                  {t.quadrant === 'do' ? 'Q1 · Do First' : t.quadrant === 'schedule' ? 'Q2 · Schedule' : t.quadrant === 'delegate' ? 'Q3 · Delegate' : 'Q4 · Eliminate'}
+                </span>
+                <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: `${statusColor}18`, color: statusColor, fontWeight: 600, textTransform: 'capitalize' }}>
+                  {t.status.replace('_', ' ')}
+                </span>
+              </div>
+              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: '#e8eaf0', lineHeight: 1.4 }}>{t.title}</h2>
+            </div>
+
+            {/* Description */}
+            {t.description && (
+              <div style={{ background: '#0f1117', border: '1px solid #2a2f45', borderRadius: 8, padding: '10px 14px', marginBottom: 16 }}>
+                <p style={{ margin: 0, fontSize: 13, color: '#b0b8cc', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{t.description}</p>
+              </div>
+            )}
+
+            {/* Detail rows */}
+            <div style={{ marginBottom: 16 }}>
+              {t.client_name    && <Row label="Client"       value={<span style={{ color: '#3AAFA9' }}>{t.client_name}</span>} />}
+              {t.due_date       && <Row label="Due"          value={new Date(t.due_date + (t.due_date.includes('T') ? '' : 'T00:00:00')).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })} />}
+              {t.estimated_minutes && <Row label="Estimate"  value={`${t.estimated_minutes} min`} />}
+              {t.priority_score != null && <Row label="Priority"    value={String(t.priority_score)} />}
+              {t.delegated_to   && <Row label="Delegated to" value={t.delegated_to} />}
+              {t.delegation_channel && <Row label="Via"      value={t.delegation_channel} />}
+              {t.source_type    && <Row label="Source"       value={t.source_type} />}
+              {t.tags && t.tags.length > 0 && (
+                <Row label="Tags" value={
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {t.tags.map(tag => (
+                      <span key={tag} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: 'rgba(58,175,169,0.12)', color: '#3AAFA9', border: '1px solid rgba(58,175,169,0.25)' }}>{tag}</span>
+                    ))}
+                  </div>
+                } />
+              )}
+              {t.created_at && <Row label="Created" value={new Date(t.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })} />}
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                onClick={() => { setDetailTask(null); openEdit(t) }}
+                style={{ flex: 1, padding: '9px 12px', background: 'rgba(58,175,169,0.08)', color: '#3AAFA9', border: '1px solid rgba(58,175,169,0.25)', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                Edit
+              </button>
+              {t.status !== 'done' && (
+                <button
+                  onClick={() => { setDetailTask(null); completeTask(t.id) }}
+                  disabled={completing === t.id}
+                  style={{ flex: 1, padding: '9px 12px', background: 'rgba(34,197,94,0.08)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.25)', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                  ✓ Mark Done
+                </button>
+              )}
+              <button
+                onClick={() => { setDetailTask(null); deleteTask(t.id) }}
+                disabled={deleting === t.id}
+                style={{ padding: '9px 14px', background: 'rgba(239,68,68,0.08)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                Delete
+              </button>
+            </div>
+          </Modal>
+        )
+      })()}
     </div>
   )
 }
