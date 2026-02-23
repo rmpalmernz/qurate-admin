@@ -759,6 +759,9 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
   const [dragOver, setDragOver]         = useState<QKey | null>(null)
   const [dropTargetId, setDropTargetId] = useState<string | null>(null)
   const [merging, setMerging]           = useState(false)
+  // Ref so event handlers always see the current drag ID synchronously
+  // (React state updates are async; dragover fires before the re-render)
+  const dragIdRef                       = useRef<string | null>(null)
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const qLabel = (q: QKey) => q === 'do' ? 'Q1' : q === 'schedule' ? 'Q2' : q === 'delegate' ? 'Q3' : 'Q4'
@@ -908,14 +911,19 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
 
   // ── Drag handlers ─────────────────────────────────────────────────────────
   function onDragStart(e: React.DragEvent, id: string) {
-    setDragId(id); e.dataTransfer.effectAllowed = 'move'
+    dragIdRef.current = id
+    setDragId(id)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', id)
   }
   function onDragOver(e: React.DragEvent, q: QKey) {
     e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(q)
   }
   function onDrop(e: React.DragEvent, q: QKey) {
     e.preventDefault()
-    if (dragId) moveTask(dragId, q)
+    const id = dragIdRef.current || e.dataTransfer.getData('text/plain')
+    if (id) moveTask(id, q)
+    dragIdRef.current = null
     setDragId(null); setDragOver(null)
   }
 
@@ -1000,13 +1008,14 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
                         key={t.id}
                         draggable
                         onDragStart={e => { e.stopPropagation(); onDragStart(e, t.id) }}
-                        onDragEnd={() => { setDragId(null); setDragOver(null); setDropTargetId(null) }}
+                        onDragEnd={() => { dragIdRef.current = null; setDragId(null); setDragOver(null); setDropTargetId(null) }}
                         onDragOver={e => {
-                          if (dragId && dragId !== t.id) {
+                          const srcId = dragIdRef.current
+                          if (srcId && srcId !== t.id) {
                             e.preventDefault(); e.stopPropagation()
-                            e.dataTransfer.dropEffect = 'copy'
-                            setDropTargetId(t.id)
-                            setDragOver(null)
+                            e.dataTransfer.dropEffect = 'move'
+                            if (dropTargetId !== t.id) setDropTargetId(t.id)
+                            if (dragOver !== null) setDragOver(null)
                           }
                         }}
                         onDragLeave={e => {
@@ -1014,7 +1023,9 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
                         }}
                         onDrop={e => {
                           e.preventDefault(); e.stopPropagation()
-                          if (dragId && dragId !== t.id) mergeTask(t.id, dragId)
+                          const srcId = dragIdRef.current || e.dataTransfer.getData('text/plain')
+                          if (srcId && srcId !== t.id) mergeTask(t.id, srcId)
+                          dragIdRef.current = null
                           setDragId(null); setDragOver(null); setDropTargetId(null)
                         }}
                         onClick={e => e.stopPropagation()}
