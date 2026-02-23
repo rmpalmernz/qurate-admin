@@ -747,14 +747,13 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
   const [taskQuadrant, setTaskQuadrant] = useState<QKey>('do')
   const [taskClient, setTaskClient]     = useState('')
   const [taskDue, setTaskDue]           = useState('')
-  const [taskMins, setTaskMins]         = useState('')
-  const [taskNotes, setTaskNotes]       = useState('')
-  const [saving, setSaving]             = useState(false)
+  const [taskMins, setTaskMins]               = useState('')
+  const [taskDescription, setTaskDescription] = useState('')
+  const [saving, setSaving]                   = useState(false)
 
   // ── Action state ──────────────────────────────────────────────────────────
   const [completing, setCompleting]     = useState<string | null>(null)
   const [deleting, setDeleting]         = useState<string | null>(null)
-  const [menuId, setMenuId]             = useState<string | null>(null)
   const [detailTask, setDetailTask]     = useState<EisenhowerTask | null>(null)
 
   // ── Completed tasks ───────────────────────────────────────────────────────
@@ -777,14 +776,14 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
 
   function resetForm() {
     setTaskTitle(''); setTaskQuadrant('do'); setTaskClient('')
-    setTaskDue(''); setTaskMins(''); setTaskNotes('')
+    setTaskDue(''); setTaskMins(''); setTaskDescription('')
   }
 
   function openEdit(t: EisenhowerTask) {
     setTaskTitle(t.title); setTaskQuadrant(t.quadrant)
     setTaskClient(t.client_name || ''); setTaskDue(t.due_date || '')
     setTaskMins(t.estimated_minutes ? String(t.estimated_minutes) : '')
-    setTaskNotes(t.notes || ''); setEditTask(t); setMenuId(null)
+    setTaskDescription(t.description || ''); setEditTask(t)
   }
 
   // ── API ───────────────────────────────────────────────────────────────────
@@ -799,7 +798,7 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
           title: taskTitle.trim(), quadrant: taskQuadrant,
           client_name: taskClient || null, due_date: taskDue || null,
           estimated_minutes: taskMins ? parseInt(taskMins) : null,
-          notes: taskNotes || null, status: 'pending',
+          description: taskDescription || null, status: 'open',
         }),
       })
       setAddOpen(false); resetForm(); onRefresh()
@@ -818,7 +817,7 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
           title: taskTitle.trim(), quadrant: taskQuadrant,
           client_name: taskClient || null, due_date: taskDue || null,
           estimated_minutes: taskMins ? parseInt(taskMins) : null,
-          notes: taskNotes || null,
+          description: taskDescription || null,
         }),
       })
       setEditTask(null); resetForm(); onRefresh()
@@ -834,7 +833,7 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
         headers: { apikey: ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
         body: JSON.stringify({ status: 'done' }),
       })
-      setMenuId(null); onRefresh()
+      onRefresh()
       if (showDone) loadDone()
     } catch { alert('Failed to complete task.') }
     setCompleting(null)
@@ -847,7 +846,7 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
         method: 'DELETE',
         headers: { apikey: ANON_KEY },
       })
-      setMenuId(null); onRefresh()
+      onRefresh()
       if (showDone) loadDone()
     } catch { alert('Failed to delete task.') }
     setDeleting(null)
@@ -860,7 +859,7 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
         headers: { apikey: ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
         body: JSON.stringify({ quadrant }),
       })
-      setMenuId(null); onRefresh()
+      onRefresh()
     } catch { alert('Failed to move task.') }
   }
 
@@ -953,7 +952,7 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
         <input type="date" value={taskDue} onChange={e => setTaskDue(e.target.value)} style={inputStyle} />
         <input type="number" value={taskMins} onChange={e => setTaskMins(e.target.value)} placeholder="Est. minutes" min={1} style={inputStyle} />
       </div>
-      <textarea value={taskNotes} onChange={e => setTaskNotes(e.target.value)} placeholder="Notes (optional)" rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
+      <textarea value={taskDescription} onChange={e => setTaskDescription(e.target.value)} placeholder="Description (optional)" rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
       <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
         <button onClick={() => { isEdit ? setEditTask(null) : setAddOpen(false); resetForm() }} style={secondaryBtnStyle}>Cancel</button>
         <button onClick={isEdit ? saveEdit : createTask} disabled={!taskTitle.trim() || saving} style={{ ...primaryBtnStyle, opacity: !taskTitle.trim() || saving ? 0.5 : 1 }}>
@@ -964,7 +963,7 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
   )
 
   return (
-    <div onClick={() => setMenuId(null)}>
+    <div>
 
       {/* ── Header ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -1008,8 +1007,7 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
                 {qTasks.length === 0
                   ? <p style={{ color: isOver ? cfg.color : '#3d4258', fontSize: 12, margin: 0, textAlign: 'center', padding: '12px 0', opacity: isOver ? 1 : 0.6 }}>{isOver ? '↓ Drop here' : 'No tasks'}</p>
                   : qTasks.map(t => {
-                    const isMenu      = menuId === t.id
-                    const isDragging  = dragId === t.id
+                    const isDragging   = dragId === t.id
                     const isDropTarget = dropTargetId === t.id && dragId !== null && dragId !== t.id
                     return (
                       <div
@@ -1038,73 +1036,27 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
                         }}
                         onClick={e => { e.stopPropagation(); if (!dragIdRef.current) setDetailTask(t) }}
                         style={{
-                          background: isDropTarget ? cfg.color + '18' : '#1a1d27',
-                          border: `1px solid ${isDropTarget ? cfg.color : (isMenu ? cfg.color : '#2a2f45')}`,
+                          background: isDropTarget ? cfg.color + '12' : '#1a1d27',
+                          borderBottom: '1px solid #1e2235',
+                          borderLeft: `3px solid ${cfg.color}`,
+                          borderTop: 'none', borderRight: 'none',
                           outline: isDropTarget ? `2px dashed ${cfg.color}` : 'none',
-                          outlineOffset: 2,
-                          borderRadius: 8, padding: '8px 10px',
+                          outlineOffset: -2,
+                          borderRadius: 8, padding: '11px 14px',
                           opacity: isDragging ? 0.35 : 1,
-                          cursor: 'grab', userSelect: 'none',
-                          transition: 'border-color 0.1s, background 0.1s, outline 0.1s',
+                          cursor: 'pointer', userSelect: 'none',
+                          transition: 'background 0.1s',
                         }}
                       >
-                        {/* Merge drop hint */}
                         {isDropTarget && (
-                          <div style={{ marginBottom: 6, fontSize: 11, fontWeight: 600, color: cfg.color, textAlign: 'center', letterSpacing: '0.4px' }}>
-                            ⊕ Drop to combine
-                          </div>
+                          <div style={{ fontSize: 11, color: cfg.color, marginBottom: 4, fontWeight: 600 }}>⊕ Drop to combine</div>
                         )}
-                        {/* Card header */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 3 }}>
-                              <span style={{ fontSize: 10, fontWeight: 800, padding: '1px 6px', borderRadius: 4, background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, flexShrink: 0 }}>{qLabel(q)}</span>
-                              {t.client_name && <span style={{ fontSize: 11, color: '#3AAFA9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.client_name}</span>}
-                            </div>
-                            <p style={{ margin: '0 0 3px', fontSize: 13, color: '#e8eaf0', fontWeight: 500 }}>{t.title}</p>
-                            <div style={{ display: 'flex', gap: 8 }}>
-                              {t.due_date && <span style={{ fontSize: 11, color: '#6b7280' }}>{fmtDue(t.due_date)}</span>}
-                              {t.estimated_minutes && <span style={{ fontSize: 11, color: '#6b7280' }}>{t.estimated_minutes}m</span>}
-                            </div>
-                          </div>
-                          {/* ··· menu toggle */}
-                          <button
-                            onClick={e => { e.stopPropagation(); setMenuId(isMenu ? null : t.id) }}
-                            style={{ background: 'transparent', border: 'none', color: '#6b7280', cursor: 'pointer', padding: '2px 6px', borderRadius: 4, fontSize: 18, lineHeight: 1, flexShrink: 0, touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-                          >&#xFE19;</button>
+                        <p style={{ margin: '0 0 4px', fontSize: 13, color: '#e8eaf0', fontWeight: q === 'do' ? 600 : 400, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</p>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          {t.client_name && <span style={{ fontSize: 11, color: '#3AAFA9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.client_name}</span>}
+                          {t.due_date && <span style={{ fontSize: 11, color: '#6b7280' }}>{fmtDue(t.due_date)}</span>}
+                          {t.estimated_minutes && <span style={{ fontSize: 11, color: '#6b7280' }}>{t.estimated_minutes}m</span>}
                         </div>
-
-                        {/* Expanded action panel */}
-                        {isMenu && (
-                          <div onClick={e => e.stopPropagation()} style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #2a2f45' }}>
-                            <p style={{ margin: '0 0 6px', fontSize: 10, color: '#6b7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Move to</p>
-                            <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-                              {quadrants.filter(qk => qk !== q).map(qk => {
-                                const qc = quadrantConfig[qk]
-                                return (
-                                  <button key={qk} onClick={() => moveTask(t.id, qk)}
-                                    style={{ padding: '4px 12px', borderRadius: 6, background: qc.bg, color: qc.color, border: `1px solid ${qc.border}`, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-                                    {qLabel(qk)}
-                                  </button>
-                                )
-                              })}
-                            </div>
-                            <div style={{ display: 'flex', gap: 6 }}>
-                              <button onClick={() => openEdit(t)}
-                                style={{ flex: 1, padding: '6px 8px', background: 'rgba(58,175,169,0.08)', color: '#3AAFA9', border: '1px solid rgba(58,175,169,0.25)', borderRadius: 6, fontSize: 11, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-                                Edit
-                              </button>
-                              <button onClick={() => completeTask(t.id)} disabled={completing === t.id}
-                                style={{ flex: 1, padding: '6px 8px', background: 'rgba(34,197,94,0.08)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.25)', borderRadius: 6, fontSize: 11, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", opacity: completing === t.id ? 0.5 : 1 }}>
-                                {completing === t.id ? '…' : '✓ Done'}
-                              </button>
-                              <button onClick={() => deleteTask(t.id)} disabled={deleting === t.id}
-                                style={{ flex: 1, padding: '6px 8px', background: 'rgba(239,68,68,0.08)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6, fontSize: 11, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", opacity: deleting === t.id ? 0.5 : 1 }}>
-                                {deleting === t.id ? '…' : 'Delete'}
-                              </button>
-                            </div>
-                          </div>
-                        )}
                       </div>
                     )
                   })}
@@ -1164,84 +1116,110 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
       {detailTask && (() => {
         const t   = detailTask
         const cfg = quadrantConfig[t.quadrant]
-        const statusColors: Record<string, string> = {
-          open: '#3AAFA9', in_progress: '#C9A96E', waiting: '#6b7280', done: '#22c55e', cancelled: '#ef4444',
-        }
+        const qFullLabel = t.quadrant === 'do' ? 'Q1 · Do First' : t.quadrant === 'schedule' ? 'Q2 · Schedule' : t.quadrant === 'delegate' ? 'Q3 · Delegate' : 'Q4 · Eliminate'
+        const statusColors: Record<string, string> = { open: '#3AAFA9', in_progress: '#C9A96E', waiting: '#6b7280', done: '#22c55e', cancelled: '#ef4444' }
         const statusColor = statusColors[t.status] || '#6b7280'
-        const Row = ({ label, value }: { label: string; value: React.ReactNode }) => (
+        const MetaRow = ({ label, value }: { label: string; value: React.ReactNode }) => (
           <div style={{ display: 'flex', gap: 12, padding: '8px 0', borderBottom: '1px solid #1e2235' }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', minWidth: 110, paddingTop: 1 }}>{label}</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', minWidth: 100, paddingTop: 1 }}>{label}</span>
             <span style={{ fontSize: 13, color: '#b0b8cc', flex: 1 }}>{value}</span>
           </div>
         )
         return (
           <Modal title="" onClose={() => setDetailTask(null)}>
-            {/* Title + quadrant */}
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 4, background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}>
-                  {t.quadrant === 'do' ? 'Q1 · Do First' : t.quadrant === 'schedule' ? 'Q2 · Schedule' : t.quadrant === 'delegate' ? 'Q3 · Delegate' : 'Q4 · Eliminate'}
-                </span>
-                <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: `${statusColor}18`, color: statusColor, fontWeight: 600, textTransform: 'capitalize' }}>
-                  {t.status.replace('_', ' ')}
-                </span>
+
+            {/* ── A: Header with coloured left accent ── */}
+            <div style={{ borderLeft: `3px solid ${cfg.color}`, paddingLeft: 14, marginBottom: 20 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 4, background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}>{qFullLabel}</span>
+                <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: `${statusColor}18`, color: statusColor, fontWeight: 600, textTransform: 'capitalize' }}>{t.status.replace('_', ' ')}</span>
               </div>
-              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: '#e8eaf0', lineHeight: 1.4 }}>{t.title}</h2>
+              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: '#e8eaf0', lineHeight: 1.35 }}>{t.title}</h2>
             </div>
 
-            {/* Description */}
+            {/* ── B: Description ── */}
             {t.description && (
               <div style={{ background: '#0f1117', border: '1px solid #2a2f45', borderRadius: 8, padding: '10px 14px', marginBottom: 16 }}>
                 <p style={{ margin: 0, fontSize: 13, color: '#b0b8cc', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{t.description}</p>
               </div>
             )}
 
-            {/* Detail rows */}
-            <div style={{ marginBottom: 16 }}>
-              {t.client_name    && <Row label="Client"       value={<span style={{ color: '#3AAFA9' }}>{t.client_name}</span>} />}
-              {t.due_date       && <Row label="Due"          value={new Date(t.due_date + (t.due_date.includes('T') ? '' : 'T00:00:00')).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })} />}
-              {t.estimated_minutes && <Row label="Estimate"  value={`${t.estimated_minutes} min`} />}
-              {t.priority_score != null && <Row label="Priority"    value={String(t.priority_score)} />}
-              {t.delegated_to   && <Row label="Delegated to" value={t.delegated_to} />}
-              {t.delegation_channel && <Row label="Via"      value={t.delegation_channel} />}
-              {t.source_type    && <Row label="Source"       value={t.source_type} />}
-              {t.tags && t.tags.length > 0 && (
-                <Row label="Tags" value={
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    {t.tags.map(tag => (
-                      <span key={tag} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: 'rgba(58,175,169,0.12)', color: '#3AAFA9', border: '1px solid rgba(58,175,169,0.25)' }}>{tag}</span>
-                    ))}
-                  </div>
-                } />
-              )}
-              {t.created_at && <Row label="Created" value={new Date(t.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })} />}
-            </div>
+            {/* ── C: Meta rows ── */}
+            {(t.client_name || t.due_date || t.estimated_minutes || t.priority_score != null || t.delegated_to || t.delegation_channel || t.source_type || (t.tags && t.tags.length > 0) || t.created_at) && (
+              <div style={{ marginBottom: 16 }}>
+                {t.client_name         && <MetaRow label="Client"       value={<span style={{ color: '#3AAFA9' }}>{t.client_name}</span>} />}
+                {t.due_date            && <MetaRow label="Due"           value={new Date(t.due_date + (t.due_date.includes('T') ? '' : 'T00:00:00')).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })} />}
+                {t.estimated_minutes   && <MetaRow label="Estimate"      value={`${t.estimated_minutes} min`} />}
+                {t.priority_score != null && <MetaRow label="Priority"   value={String(t.priority_score)} />}
+                {t.delegated_to        && <MetaRow label="Delegated to"  value={t.delegated_to} />}
+                {t.delegation_channel  && <MetaRow label="Via"           value={t.delegation_channel} />}
+                {t.source_type         && <MetaRow label="Source"        value={t.source_type} />}
+                {t.tags && t.tags.length > 0 && (
+                  <MetaRow label="Tags" value={
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {t.tags.map(tag => <span key={tag} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: 'rgba(58,175,169,0.12)', color: '#3AAFA9', border: '1px solid rgba(58,175,169,0.25)' }}>{tag}</span>)}
+                    </div>
+                  } />
+                )}
+                {t.created_at && <MetaRow label="Created" value={new Date(t.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })} />}
+              </div>
+            )}
 
-            {/* Actions */}
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button
-                onClick={() => { setDetailTask(null); openEdit(t) }}
-                style={{ flex: 1, padding: '9px 12px', background: 'rgba(58,175,169,0.08)', color: '#3AAFA9', border: '1px solid rgba(58,175,169,0.25)', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+            {/* ── D: Move to ── */}
+            {t.status !== 'done' && (
+              <div style={{ marginBottom: 20 }}>
+                <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Move to</p>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {quadrants.filter(qk => qk !== t.quadrant).map(qk => {
+                    const qc = quadrantConfig[qk]
+                    return (
+                      <button key={qk} onClick={() => { moveTask(t.id, qk); setDetailTask(null) }}
+                        style={{ padding: '6px 14px', borderRadius: 6, background: qc.bg, color: qc.color, border: `1px solid ${qc.border}`, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                        {qLabel(qk)}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* ── E: Action bar ── */}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => { setDetailTask(null); openEdit(t) }}
+                style={{ flex: 1, padding: '11px 12px', background: 'rgba(58,175,169,0.08)', color: '#3AAFA9', border: '1px solid rgba(58,175,169,0.25)', borderRadius: 10, fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
                 Edit
               </button>
               {t.status !== 'done' && (
-                <button
-                  onClick={() => { setDetailTask(null); completeTask(t.id) }}
-                  disabled={completing === t.id}
-                  style={{ flex: 1, padding: '9px 12px', background: 'rgba(34,197,94,0.08)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.25)', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-                  ✓ Mark Done
+                <button onClick={() => { setDetailTask(null); completeTask(t.id) }} disabled={completing === t.id}
+                  style={{ flex: 1, padding: '11px 12px', background: 'rgba(34,197,94,0.08)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.25)', borderRadius: 10, fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", opacity: completing === t.id ? 0.6 : 1 }}>
+                  ✓ Done
                 </button>
               )}
-              <button
-                onClick={() => { setDetailTask(null); deleteTask(t.id) }}
-                disabled={deleting === t.id}
-                style={{ padding: '9px 14px', background: 'rgba(239,68,68,0.08)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+              <button onClick={() => { setDetailTask(null); deleteTask(t.id) }} disabled={deleting === t.id}
+                style={{ padding: '11px 14px', background: 'transparent', color: '#ef4444', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 10, fontSize: 14, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", opacity: deleting === t.id ? 0.6 : 1 }}>
                 Delete
               </button>
             </div>
           </Modal>
         )
       })()}
+
+      {/* ── Mobile FAB ── */}
+      <button
+        onClick={e => { e.stopPropagation(); setAddOpen(true) }}
+        className="matrix-fab"
+        style={{
+          position: 'fixed', right: 20,
+          bottom: 'calc(72px + env(safe-area-inset-bottom, 0px))',
+          width: 52, height: 52, borderRadius: '50%',
+          background: 'linear-gradient(135deg, #3AAFA9, #2E9E98)',
+          color: '#fff', border: 'none', fontSize: 28,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 4px 20px rgba(58,175,169,0.4)',
+          cursor: 'pointer', zIndex: 150,
+          touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
+        }}
+      >+</button>
     </div>
   )
 }
