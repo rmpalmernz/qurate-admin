@@ -2006,13 +2006,27 @@ export default function Dashboard() {
   return (
     <div style={{ minHeight: '100vh', background: '#0f1117', fontFamily: "'DM Sans', sans-serif" }}>
 
-      {/* Static top header — logo left, current section title right */}
+      {/* Static top header — logo left, tab title centre, logout right */}
       <div className="dash-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ width: 30, height: 30, background: 'linear-gradient(135deg, #3AAFA9, #C9A96E)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, color: '#fff', flexShrink: 0 }}>Q</div>
           <span style={{ fontSize: 15, fontWeight: 700, color: '#3AAFA9', letterSpacing: '-0.3px' }}>Qurate</span>
         </div>
         <span style={{ fontSize: 16, fontWeight: 600, color: '#e8eaf0' }}>{TAB_TITLES[tab]}</span>
+        <button
+          onClick={() => { window.location.href = '/api/auth/logout' }}
+          title="Sign out"
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: 'transparent', color: '#6b7280', border: '1px solid #2a2f45', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", transition: 'all 0.15s' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#ef4444'; (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(239,68,68,0.4)' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#6b7280'; (e.currentTarget as HTMLButtonElement).style.borderColor = '#2a2f45' }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          Sign out
+        </button>
       </div>
 
       {/* Scrollable content */}
