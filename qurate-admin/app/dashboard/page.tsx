@@ -47,8 +47,11 @@ interface EisenhowerTask {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const fmt = (d: string) => new Date(d).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })
-const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric' })
+// MS Graph returns dateTime strings without a timezone suffix (e.g. "2026-02-24T09:00:00.0000000").
+// Without 'Z', JS parses them as LOCAL time — wrong. Force UTC by appending 'Z' when no offset is present.
+const msToDate = (d: string) => new Date(/Z$|[+\-]\d{2}:\d{2}$/.test(d) ? d : d + 'Z')
+const fmt = (d: string) => msToDate(d).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })
+const fmtDate = (d: string) => msToDate(d).toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric' })
 const timeAgo = (d: string) => {
   const diff = Date.now() - new Date(d).getTime()
   const h = Math.floor(diff / 3600000)
@@ -1598,7 +1601,7 @@ export default function Dashboard() {
         `?startDateTime=${start.toISOString()}&endDateTime=${end.toISOString()}` +
         `&$select=id,subject,start,end,location,organizer,bodyPreview,isAllDay` +
         `&$orderby=start/dateTime&$top=50`
-      const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      const r = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Prefer: 'outlook.timezone="UTC"' } })
       const data = await r.json()
       if (data.value) setEvents(data.value)
     } catch (e) { console.error('Calendar load error:', e) }
