@@ -38,12 +38,14 @@ interface CalendarEvent {
 interface EisenhowerTask {
   id: string
   title: string
+  description?: string
   quadrant: 'do' | 'schedule' | 'delegate' | 'eliminate'
   client_name?: string
   due_date?: string
   status: string
   estimated_minutes?: number
   notes?: string
+  source_email_ids?: string[]
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -755,6 +757,8 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
   // ── Drag & drop ───────────────────────────────────────────────────────────
   const [dragId, setDragId]             = useState<string | null>(null)
   const [dragOver, setDragOver]         = useState<QKey | null>(null)
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null)
+  const [merging, setMerging]           = useState(false)
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const qLabel = (q: QKey) => q === 'do' ? 'Q1' : q === 'schedule' ? 'Q2' : q === 'delegate' ? 'Q3' : 'Q4'
@@ -849,6 +853,46 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
     } catch { alert('Failed to move task.') }
   }
 
+  async function mergeTask(targetId: string, sourceId: string) {
+    if (targetId === sourceId || merging) return
+    setMerging(true)
+    try {
+      const target = tasks.find(t => t.id === targetId)
+      const source = tasks.find(t => t.id === sourceId)
+      if (!target || !source) return
+
+      // Combine descriptions: keep target title, append source as a bullet
+      const parts = [
+        target.description,
+        `• ${source.title}`,
+        source.description,
+      ].filter(Boolean)
+      const mergedDescription = parts.join('\n') || null
+
+      // Union source_email_ids, deduplicating with a Set
+      const mergedIds = Array.from(new Set([
+        ...(target.source_email_ids || []),
+        ...(source.source_email_ids || []),
+      ]))
+
+      await fetch(`${SUPABASE_URL}/rest/v1/eisenhower_tasks?id=eq.${targetId}`, {
+        method: 'PATCH',
+        headers: { apikey: ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+        body: JSON.stringify({
+          description: mergedDescription,
+          source_email_ids: mergedIds.length > 0 ? mergedIds : null,
+        }),
+      })
+      await fetch(`${SUPABASE_URL}/rest/v1/eisenhower_tasks?id=eq.${sourceId}`, {
+        method: 'DELETE',
+        headers: { apikey: ANON_KEY },
+      })
+      onRefresh()
+    } catch { alert('Failed to merge tasks.') }
+    setMerging(false)
+    setDropTargetId(null)
+  }
+
   async function loadDone() {
     setLoadingDone(true)
     try {
@@ -934,9 +978,9 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
           return (
             <div
               key={q}
-              onDragOver={e => onDragOver(e, q)}
+              onDragOver={e => { onDragOver(e, q); setDropTargetId(null) }}
               onDragLeave={() => setDragOver(null)}
-              onDrop={e => onDrop(e, q)}
+              onDrop={e => { onDrop(e, q); setDropTargetId(null) }}
               style={{ background: isOver ? cfg.color + '22' : cfg.bg, border: `1px solid ${isOver ? cfg.color : cfg.border}`, borderRadius: 12, padding: 16, minHeight: 160, transition: 'border-color 0.12s, background 0.12s' }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
@@ -948,17 +992,49 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
                 {qTasks.length === 0
                   ? <p style={{ color: isOver ? cfg.color : '#3d4258', fontSize: 12, margin: 0, textAlign: 'center', padding: '12px 0', opacity: isOver ? 1 : 0.6 }}>{isOver ? '↓ Drop here' : 'No tasks'}</p>
                   : qTasks.map(t => {
-                    const isMenu    = menuId === t.id
-                    const isDragging = dragId === t.id
+                    const isMenu      = menuId === t.id
+                    const isDragging  = dragId === t.id
+                    const isDropTarget = dropTargetId === t.id && dragId !== null && dragId !== t.id
                     return (
                       <div
                         key={t.id}
                         draggable
                         onDragStart={e => { e.stopPropagation(); onDragStart(e, t.id) }}
-                        onDragEnd={() => { setDragId(null); setDragOver(null) }}
+                        onDragEnd={() => { setDragId(null); setDragOver(null); setDropTargetId(null) }}
+                        onDragOver={e => {
+                          if (dragId && dragId !== t.id) {
+                            e.preventDefault(); e.stopPropagation()
+                            e.dataTransfer.dropEffect = 'copy'
+                            setDropTargetId(t.id)
+                            setDragOver(null)
+                          }
+                        }}
+                        onDragLeave={e => {
+                          if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropTargetId(null)
+                        }}
+                        onDrop={e => {
+                          e.preventDefault(); e.stopPropagation()
+                          if (dragId && dragId !== t.id) mergeTask(t.id, dragId)
+                          setDragId(null); setDragOver(null); setDropTargetId(null)
+                        }}
                         onClick={e => e.stopPropagation()}
-                        style={{ background: '#1a1d27', border: `1px solid ${isMenu ? cfg.color : '#2a2f45'}`, borderRadius: 8, padding: '8px 10px', opacity: isDragging ? 0.35 : 1, cursor: 'grab', userSelect: 'none' }}
+                        style={{
+                          background: isDropTarget ? cfg.color + '18' : '#1a1d27',
+                          border: `1px solid ${isDropTarget ? cfg.color : (isMenu ? cfg.color : '#2a2f45')}`,
+                          outline: isDropTarget ? `2px dashed ${cfg.color}` : 'none',
+                          outlineOffset: 2,
+                          borderRadius: 8, padding: '8px 10px',
+                          opacity: isDragging ? 0.35 : 1,
+                          cursor: 'grab', userSelect: 'none',
+                          transition: 'border-color 0.1s, background 0.1s, outline 0.1s',
+                        }}
                       >
+                        {/* Merge drop hint */}
+                        {isDropTarget && (
+                          <div style={{ marginBottom: 6, fontSize: 11, fontWeight: 600, color: cfg.color, textAlign: 'center', letterSpacing: '0.4px' }}>
+                            ⊕ Drop to combine
+                          </div>
+                        )}
                         {/* Card header */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
                           <div style={{ flex: 1, minWidth: 0 }}>
