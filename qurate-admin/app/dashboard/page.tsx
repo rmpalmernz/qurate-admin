@@ -1805,8 +1805,7 @@ function SettingsTab({ connected, onDisconnect }: { connected: boolean; onDiscon
     if (c && !vipContacts.includes(c)) { setVipContacts(p => [...p, c]); setNewContact('') }
   }
 
-  async function disconnect() {
-    await authFetch(`${SUPABASE_FUNCTIONS_URL}/ms-auth?action=disconnect`)
+  function disconnect() {
     onDisconnect()
   }
 
@@ -1930,7 +1929,15 @@ export default function Dashboard() {
   const [events, setEvents]     = useState<CalendarEvent[]>([])
   const [tasks, setTasks]       = useState<EisenhowerTask[]>([])
   const [emailLoading, setEmailLoading] = useState(false)
-  const [connected, setConnected] = useState(true)
+  const [connected, setConnected] = useState(false)
+
+  // Verify MS token on mount; redirect to login if missing
+  useEffect(() => {
+    getMsToken().then(token => {
+      if (token) setConnected(true)
+      else window.location.href = '/'
+    })
+  }, [])
 
   const loadEmails = useCallback(async () => {
     setEmailLoading(true)
@@ -2016,7 +2023,7 @@ export default function Dashboard() {
         {tab === 'matrix'    && <MatrixTab tasks={tasks} onRefresh={loadTasks} />}
         {tab === 'clients'   && <ClientsTab emails={emails} tasks={tasks} />}
         {tab === 'chat'      && <ChatTab />}
-        {tab === 'settings'  && <SettingsTab connected={connected} onDisconnect={() => { setConnected(false); window.location.href = '/' }} />}
+        {tab === 'settings'  && <SettingsTab connected={connected} onDisconnect={() => { setConnected(false); window.location.href = '/api/auth/logout' }} />}
       </div>
 
       {/* Fixed bottom navigation — Outlook-style */}
