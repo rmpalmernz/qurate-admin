@@ -235,4 +235,5 @@ body {
   .modal-overlay { align-items: center; padding: 24px; }
   .modal-sheet   { border-radius: 16px; max-width: 560px; max-height: 90vh; padding: 28px; }
   .modal-handle  { display: none; }
+  .matrix-fab    { display: none; }
 }
