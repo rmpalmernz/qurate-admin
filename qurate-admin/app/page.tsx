@@ -1,31 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { SUPABASE_FUNCTIONS_URL } from '@/lib/supabase'
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false)
-  const [status, setStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking')
-
-  useEffect(() => {
-    checkConnection()
-  }, [])
-
-  async function checkConnection() {
-    try {
-      const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/ms-auth?action=status`, {
-        headers: { 'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY! }
-      })
-      const data = await res.json()
-      if (data.connected) {
-        window.location.href = '/dashboard'
-      } else {
-        setStatus('disconnected')
-      }
-    } catch {
-      setStatus('disconnected')
-    }
-  }
 
   async function handleLogin() {
     setLoading(true)
@@ -46,14 +25,6 @@ export default function LoginPage() {
       alert('Error: ' + e)
       setLoading(false)
     }
-  }
-
-  if (status === 'checking') {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f1117' }}>
-        <div style={{ color: '#3AAFA9', fontSize: 14 }}>Checking connection...</div>
-      </div>
-    )
   }
 
   return (
