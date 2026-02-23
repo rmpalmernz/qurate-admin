@@ -35,8 +35,16 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(new URL(`/?error=${encodeURIComponent(data.error || 'token_exchange_failed')}`, req.url))
     }
 
-    // Success - redirect to dashboard
-    return NextResponse.redirect(new URL('/dashboard', req.url))
+    // Success - set session cookie and redirect to dashboard
+    const response = NextResponse.redirect(new URL('/dashboard', req.url))
+    response.cookies.set('ms_auth_connected', '1', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 30, // 30 days
+    })
+    return response
   } catch (e) {
     console.error('Callback error:', e)
     return NextResponse.redirect(new URL('/?error=callback_failed', req.url))
