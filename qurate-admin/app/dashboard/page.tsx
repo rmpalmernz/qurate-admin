@@ -1076,7 +1076,7 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
 
                         {/* Expanded action panel */}
                         {isMenu && (
-                          <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #2a2f45' }}>
+                          <div onClick={e => e.stopPropagation()} style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #2a2f45' }}>
                             <p style={{ margin: '0 0 6px', fontSize: 10, color: '#6b7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Move to</p>
                             <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
                               {quadrants.filter(qk => qk !== q).map(qk => {
