@@ -729,21 +729,50 @@ function EmailTab({ emails, loading, onRefresh }: { emails: Email[]; loading: bo
 
 // ─── MATRIX TAB ───────────────────────────────────────────────────────────────
 function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: () => void }) {
+  type QKey = 'do' | 'schedule' | 'delegate' | 'eliminate'
+
+  // ── Form state ────────────────────────────────────────────────────────────
   const [addOpen, setAddOpen]           = useState(false)
-  const [completing, setCompleting]     = useState<string | null>(null)
+  const [editTask, setEditTask]         = useState<EisenhowerTask | null>(null)
   const [taskTitle, setTaskTitle]       = useState('')
-  const [taskQuadrant, setTaskQuadrant] = useState<'do'|'schedule'|'delegate'|'eliminate'>('do')
+  const [taskQuadrant, setTaskQuadrant] = useState<QKey>('do')
   const [taskClient, setTaskClient]     = useState('')
   const [taskDue, setTaskDue]           = useState('')
   const [taskMins, setTaskMins]         = useState('')
   const [taskNotes, setTaskNotes]       = useState('')
   const [saving, setSaving]             = useState(false)
 
+  // ── Action state ──────────────────────────────────────────────────────────
+  const [completing, setCompleting]     = useState<string | null>(null)
+  const [deleting, setDeleting]         = useState<string | null>(null)
+  const [menuId, setMenuId]             = useState<string | null>(null)
+
+  // ── Completed tasks ───────────────────────────────────────────────────────
+  const [showDone, setShowDone]         = useState(false)
+  const [doneTasks, setDoneTasks]       = useState<EisenhowerTask[]>([])
+  const [loadingDone, setLoadingDone]   = useState(false)
+
+  // ── Drag & drop ───────────────────────────────────────────────────────────
+  const [dragId, setDragId]             = useState<string | null>(null)
+  const [dragOver, setDragOver]         = useState<QKey | null>(null)
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  const qLabel = (q: QKey) => q === 'do' ? 'Q1' : q === 'schedule' ? 'Q2' : q === 'delegate' ? 'Q3' : 'Q4'
+  const fmtDue = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric' })
+
   function resetForm() {
     setTaskTitle(''); setTaskQuadrant('do'); setTaskClient('')
     setTaskDue(''); setTaskMins(''); setTaskNotes('')
   }
 
+  function openEdit(t: EisenhowerTask) {
+    setTaskTitle(t.title); setTaskQuadrant(t.quadrant)
+    setTaskClient(t.client_name || ''); setTaskDue(t.due_date || '')
+    setTaskMins(t.estimated_minutes ? String(t.estimated_minutes) : '')
+    setTaskNotes(t.notes || ''); setEditTask(t); setMenuId(null)
+  }
+
+  // ── API ───────────────────────────────────────────────────────────────────
   async function createTask() {
     if (!taskTitle.trim()) return
     setSaving(true)
@@ -752,19 +781,33 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
         method: 'POST',
         headers: { apikey: ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
         body: JSON.stringify({
-          title: taskTitle.trim(),
-          quadrant: taskQuadrant,
-          client_name: taskClient || null,
-          due_date: taskDue || null,
+          title: taskTitle.trim(), quadrant: taskQuadrant,
+          client_name: taskClient || null, due_date: taskDue || null,
           estimated_minutes: taskMins ? parseInt(taskMins) : null,
-          notes: taskNotes || null,
-          status: 'pending',
+          notes: taskNotes || null, status: 'pending',
         }),
       })
-      setAddOpen(false)
-      resetForm()
-      onRefresh()
-    } catch { alert('Failed to create task. Please try again.') }
+      setAddOpen(false); resetForm(); onRefresh()
+    } catch { alert('Failed to create task.') }
+    setSaving(false)
+  }
+
+  async function saveEdit() {
+    if (!editTask || !taskTitle.trim()) return
+    setSaving(true)
+    try {
+      await fetch(`${SUPABASE_URL}/rest/v1/eisenhower_tasks?id=eq.${editTask.id}`, {
+        method: 'PATCH',
+        headers: { apikey: ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+        body: JSON.stringify({
+          title: taskTitle.trim(), quadrant: taskQuadrant,
+          client_name: taskClient || null, due_date: taskDue || null,
+          estimated_minutes: taskMins ? parseInt(taskMins) : null,
+          notes: taskNotes || null,
+        }),
+      })
+      setEditTask(null); resetForm(); onRefresh()
+    } catch { alert('Failed to update task.') }
     setSaving(false)
   }
 
@@ -776,92 +819,249 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
         headers: { apikey: ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
         body: JSON.stringify({ status: 'done' }),
       })
-      onRefresh()
-    } catch { alert('Failed to update task.') }
+      setMenuId(null); onRefresh()
+      if (showDone) loadDone()
+    } catch { alert('Failed to complete task.') }
     setCompleting(null)
+  }
+
+  async function deleteTask(id: string) {
+    setDeleting(id)
+    try {
+      await fetch(`${SUPABASE_URL}/rest/v1/eisenhower_tasks?id=eq.${id}`, {
+        method: 'DELETE',
+        headers: { apikey: ANON_KEY },
+      })
+      setMenuId(null); onRefresh()
+      if (showDone) loadDone()
+    } catch { alert('Failed to delete task.') }
+    setDeleting(null)
+  }
+
+  async function moveTask(id: string, quadrant: QKey) {
+    try {
+      await fetch(`${SUPABASE_URL}/rest/v1/eisenhower_tasks?id=eq.${id}`, {
+        method: 'PATCH',
+        headers: { apikey: ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+        body: JSON.stringify({ quadrant }),
+      })
+      setMenuId(null); onRefresh()
+    } catch { alert('Failed to move task.') }
+  }
+
+  async function loadDone() {
+    setLoadingDone(true)
+    try {
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/eisenhower_tasks?select=*&status=eq.done&order=updated_at.desc&limit=30`,
+        { headers: { apikey: ANON_KEY } }
+      )
+      const data = await res.json()
+      if (Array.isArray(data)) setDoneTasks(data)
+    } catch { /* swallow */ }
+    setLoadingDone(false)
+  }
+
+  // ── Drag handlers ─────────────────────────────────────────────────────────
+  function onDragStart(e: React.DragEvent, id: string) {
+    setDragId(id); e.dataTransfer.effectAllowed = 'move'
+  }
+  function onDragOver(e: React.DragEvent, q: QKey) {
+    e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(q)
+  }
+  function onDrop(e: React.DragEvent, q: QKey) {
+    e.preventDefault()
+    if (dragId) moveTask(dragId, q)
+    setDragId(null); setDragOver(null)
   }
 
   const quadrants = ['do', 'schedule', 'delegate', 'eliminate'] as const
   const q1Count   = tasks.filter(t => t.quadrant === 'do').length
 
+  // ── Shared task form JSX ──────────────────────────────────────────────────
+  const taskForm = (isEdit: boolean) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <input value={taskTitle} onChange={e => setTaskTitle(e.target.value)} placeholder="Task title *" style={inputStyle} autoFocus />
+      <select value={taskQuadrant} onChange={e => setTaskQuadrant(e.target.value as QKey)} style={{ ...inputStyle, cursor: 'pointer' }}>
+        <option value="do">Q1 — Do First (urgent + important)</option>
+        <option value="schedule">Q2 — Schedule (important, not urgent)</option>
+        <option value="delegate">Q3 — Delegate (urgent, not important)</option>
+        <option value="eliminate">Q4 — Eliminate (not urgent, not important)</option>
+      </select>
+      <input value={taskClient} onChange={e => setTaskClient(e.target.value)} placeholder="Client name (optional)" style={inputStyle} />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <input type="date" value={taskDue} onChange={e => setTaskDue(e.target.value)} style={inputStyle} />
+        <input type="number" value={taskMins} onChange={e => setTaskMins(e.target.value)} placeholder="Est. minutes" min={1} style={inputStyle} />
+      </div>
+      <textarea value={taskNotes} onChange={e => setTaskNotes(e.target.value)} placeholder="Notes (optional)" rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
+      <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+        <button onClick={() => { isEdit ? setEditTask(null) : setAddOpen(false); resetForm() }} style={secondaryBtnStyle}>Cancel</button>
+        <button onClick={isEdit ? saveEdit : createTask} disabled={!taskTitle.trim() || saving} style={{ ...primaryBtnStyle, opacity: !taskTitle.trim() || saving ? 0.5 : 1 }}>
+          {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Task'}
+        </button>
+      </div>
+    </div>
+  )
+
   return (
-    <div>
+    <div onClick={() => setMenuId(null)}>
+
+      {/* ── Header ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#e8eaf0' }}>Eisenhower Matrix</h3>
-        <button onClick={() => setAddOpen(true)} style={{ padding: '7px 14px', background: 'rgba(58,175,169,0.12)', color: '#3AAFA9', border: '1px solid rgba(58,175,169,0.3)', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>+ Add Task</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={e => { e.stopPropagation(); const next = !showDone; setShowDone(next); if (next) loadDone() }}
+            style={{ padding: '7px 12px', background: showDone ? 'rgba(34,197,94,0.1)' : 'transparent', color: showDone ? '#22c55e' : '#6b7280', border: `1px solid ${showDone ? 'rgba(34,197,94,0.3)' : '#2a2f45'}`, borderRadius: 8, fontSize: 12, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
+          >&#10003; Done</button>
+          <button onClick={e => { e.stopPropagation(); setAddOpen(true) }} style={{ padding: '7px 14px', background: 'rgba(58,175,169,0.12)', color: '#3AAFA9', border: '1px solid rgba(58,175,169,0.3)', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>+ Add Task</button>
+        </div>
       </div>
 
       {q1Count > 8 && (
         <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 10, padding: '10px 16px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 16 }}>&#9888;</span>
-          <span style={{ fontSize: 13, color: '#ef4444', fontWeight: 500 }}>Q1 overload: {q1Count} urgent tasks. Consider delegating or rescheduling some items.</span>
+          <span style={{ fontSize: 13, color: '#ef4444', fontWeight: 500 }}>Q1 overload: {q1Count} urgent tasks. Consider delegating or rescheduling.</span>
         </div>
       )}
 
+      {/* ── 2×2 Matrix ── */}
       <div className="r-grid-2" style={{ gap: 12 }}>
         {quadrants.map(q => {
           const cfg    = quadrantConfig[q]
           const qTasks = tasks.filter(t => t.quadrant === q)
+          const isOver = dragOver === q
           return (
-            <div key={q} style={{ background: cfg.bg, border: `1px solid ${cfg.border}`, borderRadius: 12, padding: 16, minHeight: 160 }}>
+            <div
+              key={q}
+              onDragOver={e => onDragOver(e, q)}
+              onDragLeave={() => setDragOver(null)}
+              onDrop={e => onDrop(e, q)}
+              style={{ background: isOver ? cfg.color + '22' : cfg.bg, border: `1px solid ${isOver ? cfg.color : cfg.border}`, borderRadius: 12, padding: 16, minHeight: 160, transition: 'border-color 0.12s, background 0.12s' }}
+            >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: cfg.color }} />
                 <span style={{ fontSize: 12, fontWeight: 700, color: cfg.color, textTransform: 'uppercase', letterSpacing: '0.6px' }}>{cfg.label}</span>
                 <span style={{ marginLeft: 'auto', fontSize: 11, color: '#6b7280' }}>{qTasks.length}</span>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {qTasks.length === 0 ? <p style={{ color: '#3d4258', fontSize: 12, margin: 0 }}>No tasks</p> : qTasks.map(t => (
-                  <div key={t.id} style={{ background: '#1a1d27', border: '1px solid #2a2f45', borderRadius: 8, padding: '8px 10px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 3 }}>
-                          <span style={{ fontSize: 10, fontWeight: 800, padding: '1px 6px', borderRadius: 4, background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, flexShrink: 0 }}>
-                            {q === 'do' ? 'Q1' : q === 'schedule' ? 'Q2' : q === 'delegate' ? 'Q3' : 'Q4'}
-                          </span>
-                          {t.client_name && <span style={{ fontSize: 11, color: '#3AAFA9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.client_name}</span>}
+                {qTasks.length === 0
+                  ? <p style={{ color: isOver ? cfg.color : '#3d4258', fontSize: 12, margin: 0, textAlign: 'center', padding: '12px 0', opacity: isOver ? 1 : 0.6 }}>{isOver ? '↓ Drop here' : 'No tasks'}</p>
+                  : qTasks.map(t => {
+                    const isMenu    = menuId === t.id
+                    const isDragging = dragId === t.id
+                    return (
+                      <div
+                        key={t.id}
+                        draggable
+                        onDragStart={e => { e.stopPropagation(); onDragStart(e, t.id) }}
+                        onDragEnd={() => { setDragId(null); setDragOver(null) }}
+                        onClick={e => e.stopPropagation()}
+                        style={{ background: '#1a1d27', border: `1px solid ${isMenu ? cfg.color : '#2a2f45'}`, borderRadius: 8, padding: '8px 10px', opacity: isDragging ? 0.35 : 1, cursor: 'grab', userSelect: 'none' }}
+                      >
+                        {/* Card header */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 3 }}>
+                              <span style={{ fontSize: 10, fontWeight: 800, padding: '1px 6px', borderRadius: 4, background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, flexShrink: 0 }}>{qLabel(q)}</span>
+                              {t.client_name && <span style={{ fontSize: 11, color: '#3AAFA9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.client_name}</span>}
+                            </div>
+                            <p style={{ margin: '0 0 3px', fontSize: 13, color: '#e8eaf0', fontWeight: 500 }}>{t.title}</p>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              {t.due_date && <span style={{ fontSize: 11, color: '#6b7280' }}>{fmtDue(t.due_date)}</span>}
+                              {t.estimated_minutes && <span style={{ fontSize: 11, color: '#6b7280' }}>{t.estimated_minutes}m</span>}
+                            </div>
+                          </div>
+                          {/* ··· menu toggle */}
+                          <button
+                            onClick={e => { e.stopPropagation(); setMenuId(isMenu ? null : t.id) }}
+                            style={{ background: 'transparent', border: 'none', color: '#6b7280', cursor: 'pointer', padding: '2px 6px', borderRadius: 4, fontSize: 18, lineHeight: 1, flexShrink: 0, touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+                          >&#xFE19;</button>
                         </div>
-                        <p style={{ margin: '0 0 3px', fontSize: 13, color: '#e8eaf0', fontWeight: 500 }}>{t.title}</p>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          {t.due_date && <span style={{ fontSize: 11, color: '#6b7280' }}>{fmtDate(t.due_date)}</span>}
-                          {t.estimated_minutes && <span style={{ fontSize: 11, color: '#6b7280' }}>{t.estimated_minutes}m</span>}
-                        </div>
+
+                        {/* Expanded action panel */}
+                        {isMenu && (
+                          <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #2a2f45' }}>
+                            <p style={{ margin: '0 0 6px', fontSize: 10, color: '#6b7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Move to</p>
+                            <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+                              {quadrants.filter(qk => qk !== q).map(qk => {
+                                const qc = quadrantConfig[qk]
+                                return (
+                                  <button key={qk} onClick={() => moveTask(t.id, qk)}
+                                    style={{ padding: '4px 12px', borderRadius: 6, background: qc.bg, color: qc.color, border: `1px solid ${qc.border}`, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                                    {qLabel(qk)}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <button onClick={() => openEdit(t)}
+                                style={{ flex: 1, padding: '6px 8px', background: 'rgba(58,175,169,0.08)', color: '#3AAFA9', border: '1px solid rgba(58,175,169,0.25)', borderRadius: 6, fontSize: 11, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                                Edit
+                              </button>
+                              <button onClick={() => completeTask(t.id)} disabled={completing === t.id}
+                                style={{ flex: 1, padding: '6px 8px', background: 'rgba(34,197,94,0.08)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.25)', borderRadius: 6, fontSize: 11, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", opacity: completing === t.id ? 0.5 : 1 }}>
+                                {completing === t.id ? '…' : '✓ Done'}
+                              </button>
+                              <button onClick={() => deleteTask(t.id)} disabled={deleting === t.id}
+                                style={{ flex: 1, padding: '6px 8px', background: 'rgba(239,68,68,0.08)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6, fontSize: 11, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", opacity: deleting === t.id ? 0.5 : 1 }}>
+                                {deleting === t.id ? '…' : 'Delete'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      <button
-                        onClick={() => completeTask(t.id)}
-                        disabled={completing === t.id}
-                        title="Mark complete"
-                        style={{ width: 22, height: 22, borderRadius: '50%', border: `1.5px solid ${cfg.color}`, background: 'transparent', color: cfg.color, cursor: completing === t.id ? 'not-allowed' : 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, opacity: completing === t.id ? 0.5 : 1, padding: 0, touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-                      >&#10003;</button>
-                    </div>
-                  </div>
-                ))}
+                    )
+                  })}
               </div>
             </div>
           )
         })}
       </div>
 
+      {/* ── Completed section ── */}
+      {showDone && (
+        <div style={{ marginTop: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <h4 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#22c55e' }}>Completed</h4>
+            <button onClick={loadDone} style={{ background: 'transparent', border: 'none', color: '#6b7280', fontSize: 12, cursor: 'pointer', padding: '2px 6px' }}>&#x21BB; Refresh</button>
+          </div>
+          {loadingDone
+            ? <p style={{ color: '#6b7280', fontSize: 13 }}>Loading…</p>
+            : doneTasks.length === 0
+              ? <p style={{ color: '#3d4258', fontSize: 13 }}>No completed tasks yet.</p>
+              : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {doneTasks.map(t => (
+                    <div key={t.id} style={{ background: '#1a1d27', border: '1px solid #2a2f45', borderRadius: 8, padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8, opacity: 0.65 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ fontSize: 13, color: '#6b7280', textDecoration: 'line-through' }}>{t.title}</span>
+                        {t.client_name && <span style={{ fontSize: 11, color: '#3AAFA9', marginLeft: 8 }}>{t.client_name}</span>}
+                        {t.due_date && <span style={{ fontSize: 11, color: '#4b5563', marginLeft: 8 }}>{fmtDue(t.due_date)}</span>}
+                      </div>
+                      <button onClick={() => deleteTask(t.id)} disabled={deleting === t.id}
+                        style={{ background: 'transparent', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: 14, padding: '2px 6px', flexShrink: 0, opacity: deleting === t.id ? 0.4 : 1 }}
+                        title="Delete">&#x2715;</button>
+                    </div>
+                  ))}
+                </div>
+              )
+          }
+        </div>
+      )}
+
+      {/* ── Add Task modal ── */}
       {addOpen && (
         <Modal title="Add Task" onClose={() => { setAddOpen(false); resetForm() }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <input value={taskTitle} onChange={e => setTaskTitle(e.target.value)} placeholder="Task title *" style={inputStyle} autoFocus />
-            <select value={taskQuadrant} onChange={e => setTaskQuadrant(e.target.value as typeof taskQuadrant)} style={{ ...inputStyle, cursor: 'pointer' }}>
-              <option value="do">Q1 — Do First (urgent + important)</option>
-              <option value="schedule">Q2 — Schedule (important, not urgent)</option>
-              <option value="delegate">Q3 — Delegate (urgent, not important)</option>
-              <option value="eliminate">Q4 — Eliminate (not urgent, not important)</option>
-            </select>
-            <input value={taskClient} onChange={e => setTaskClient(e.target.value)} placeholder="Client name (optional)" style={inputStyle} />
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <input type="date" value={taskDue} onChange={e => setTaskDue(e.target.value)} style={inputStyle} />
-              <input type="number" value={taskMins} onChange={e => setTaskMins(e.target.value)} placeholder="Est. minutes" min={1} style={inputStyle} />
-            </div>
-            <textarea value={taskNotes} onChange={e => setTaskNotes(e.target.value)} placeholder="Notes (optional)" rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button onClick={() => { setAddOpen(false); resetForm() }} style={secondaryBtnStyle}>Cancel</button>
-              <button onClick={createTask} disabled={!taskTitle.trim() || saving} style={{ ...primaryBtnStyle, opacity: !taskTitle.trim() || saving ? 0.5 : 1 }}>{saving ? 'Saving...' : 'Add Task'}</button>
-            </div>
-          </div>
+          {taskForm(false)}
+        </Modal>
+      )}
+
+      {/* ── Edit Task modal ── */}
+      {editTask && (
+        <Modal title="Edit Task" onClose={() => { setEditTask(null); resetForm() }}>
+          {taskForm(true)}
         </Modal>
       )}
     </div>
