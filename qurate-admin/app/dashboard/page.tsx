@@ -268,13 +268,15 @@ Keep the tone professional and direct. Use markdown formatting.`
 
       const res = await authFetch(`${SUPABASE_FUNCTIONS_URL}/chat`, {
         method: 'POST',
-        body: JSON.stringify({ message, history: [] }),
+        body: JSON.stringify({ message, messages: [{ role: 'user', content: message }] }),
       })
       const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data?.error || data?.message || `HTTP ${res.status}`)
+      }
       const briefText = data.response || data.message || ''
-
-      if (!briefText || briefText === 'Brief generated.') {
-        throw new Error('Empty response from AI')
+      if (!briefText) {
+        throw new Error(`Unexpected response shape: ${JSON.stringify(data)}`)
       }
 
       setBrief(briefText)
