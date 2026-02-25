@@ -33,12 +33,12 @@ export default function LoginPage() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: '#0f1117',
-      fontFamily: "'DM Sans', sans-serif"
+      background: '#2E3D49',
+      fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif",
     }}>
       <div style={{
-        background: '#1a1d27',
-        border: '1px solid #2a2f45',
+        background: '#374857',
+        border: '1px solid rgba(217,210,190,0.15)',
         borderRadius: 16,
         padding: '48px 56px',
         maxWidth: 440,
@@ -56,26 +56,27 @@ export default function LoginPage() {
             <div style={{
               width: 36,
               height: 36,
-              background: 'linear-gradient(135deg, #3AAFA9, #C9A96E)',
+              background: '#C19131',
               borderRadius: 8,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               fontSize: 18,
               fontWeight: 700,
-              color: '#fff'
+              color: '#2E3D49',
+              fontFamily: "'Gujarati Sangam MN', 'DM Sans', serif",
             }}>Q</div>
-            <span style={{ fontSize: 20, fontWeight: 600, color: '#e8eaf0', letterSpacing: '-0.3px' }}>
+            <span style={{ fontSize: 20, fontWeight: 700, color: '#FFFFFF', letterSpacing: '-0.3px', fontFamily: "'Gujarati Sangam MN', 'DM Sans', serif" }}>
               Qurate
             </span>
           </div>
-          <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>Admin Agent</p>
+          <p style={{ color: '#D9D2BE', fontSize: 13, margin: 0, fontWeight: 300 }}>Advisory</p>
         </div>
 
-        <h1 style={{ fontSize: 24, fontWeight: 600, color: '#e8eaf0', margin: '0 0 8px', letterSpacing: '-0.5px' }}>
-          Good morning, Richard
+        <h1 style={{ fontSize: 24, fontWeight: 700, color: '#FFFFFF', margin: '0 0 8px', letterSpacing: '-0.5px', fontFamily: "'Gujarati Sangam MN', 'DM Sans', serif" }}>
+          Welcome back
         </h1>
-        <p style={{ color: '#6b7280', fontSize: 14, margin: '0 0 36px', lineHeight: 1.6 }}>
+        <p style={{ color: '#D9D2BE', fontSize: 14, margin: '0 0 36px', lineHeight: 1.6, fontWeight: 300 }}>
           Connect your Microsoft account to access your emails, calendar, and AI briefings.
         </p>
 
@@ -85,8 +86,8 @@ export default function LoginPage() {
           style={{
             width: '100%',
             padding: '14px 24px',
-            background: loading ? '#2a2f45' : 'linear-gradient(135deg, #3AAFA9, #2E9E98)',
-            color: '#fff',
+            background: loading ? '#374857' : '#C19131',
+            color: loading ? '#D9D2BE' : '#2E3D49',
             border: 'none',
             borderRadius: 10,
             fontSize: 15,
@@ -97,12 +98,13 @@ export default function LoginPage() {
             justifyContent: 'center',
             gap: 10,
             transition: 'all 0.2s',
-            fontFamily: "'DM Sans', sans-serif"
+            fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif",
+            minHeight: 48,
           }}
         >
           {loading ? (
             <>
-              <span style={{ display: 'inline-block', width: 16, height: 16, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+              <span style={{ display: 'inline-block', width: 16, height: 16, border: '2px solid rgba(217,210,190,0.3)', borderTopColor: '#D9D2BE', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
               Connecting...
             </>
           ) : (
@@ -118,7 +120,7 @@ export default function LoginPage() {
           )}
         </button>
 
-        <p style={{ color: '#3d4258', fontSize: 12, marginTop: 24 }}>
+        <p style={{ color: 'rgba(217,210,190,0.4)', fontSize: 12, marginTop: 24, fontWeight: 300 }}>
           Access is restricted to your Microsoft 365 account
         </p>
       </div>

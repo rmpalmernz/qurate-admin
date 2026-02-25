@@ -103,27 +103,36 @@ function emailCategory(email: Email): 'vip' | 'partner' | 'tools' | 'other' {
 }
 
 const quadrantConfig = {
-  do:        { label: 'Do First',  color: '#ef4444', bg: 'rgba(239,68,68,0.08)',   border: 'rgba(239,68,68,0.2)' },
-  schedule:  { label: 'Schedule',  color: '#3AAFA9', bg: 'rgba(58,175,169,0.08)',  border: 'rgba(58,175,169,0.2)' },
-  delegate:  { label: 'Delegate',  color: '#C9A96E', bg: 'rgba(201,169,110,0.08)', border: 'rgba(201,169,110,0.2)' },
-  eliminate: { label: 'Eliminate', color: '#6b7280', bg: 'rgba(107,114,128,0.08)', border: 'rgba(107,114,128,0.2)' },
+  do:        { label: 'Do First',  color: '#C0392B', bg: 'rgba(192,57,43,0.08)',   border: 'rgba(192,57,43,0.2)' },
+  schedule:  { label: 'Schedule',  color: '#C19131', bg: 'rgba(193,145,49,0.08)',  border: 'rgba(193,145,49,0.2)' },
+  delegate:  { label: 'Delegate',  color: '#D9D2BE', bg: 'rgba(217,210,190,0.08)', border: 'rgba(217,210,190,0.2)' },
+  eliminate: { label: 'Eliminate', color: '#D9D2BE', bg: 'rgba(107,114,128,0.08)', border: 'rgba(107,114,128,0.2)' },
 }
+
+// ─── Brand constants ─────────────────────────────────────────────────────────
+const NAVY        = '#2E3D49'
+const NAVY_LIGHT  = '#374857'
+const NAVY_BORDER = 'rgba(217,210,190,0.15)'
+const GOLD        = '#C19131'
+const BEIGE       = '#D9D2BE'
+const WHITE       = '#FFFFFF'
+const RED         = '#C0392B'
 
 // ─── Shared styles ────────────────────────────────────────────────────────────
 const inputStyle: React.CSSProperties = {
-  width: '100%', padding: '10px 14px', background: '#0f1117', border: '1px solid #2a2f45',
-  borderRadius: 8, color: '#e8eaf0', fontSize: 13, outline: 'none',
-  fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box',
+  width: '100%', padding: '10px 14px', background: NAVY, border: `1px solid ${NAVY_BORDER}`,
+  borderRadius: 8, color: WHITE, fontSize: 13, outline: 'none',
+  fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif", fontWeight: 300, boxSizing: 'border-box',
 }
 const primaryBtnStyle: React.CSSProperties = {
-  padding: '10px 20px', background: 'linear-gradient(135deg, #3AAFA9, #2E9E98)',
-  color: '#fff', border: 'none', borderRadius: 8, fontSize: 13,
-  fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+  padding: '10px 20px', background: GOLD,
+  color: NAVY, border: 'none', borderRadius: 8, fontSize: 13,
+  fontWeight: 500, cursor: 'pointer', fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif",
 }
 const secondaryBtnStyle: React.CSSProperties = {
-  padding: '10px 20px', background: 'transparent', color: '#6b7280',
-  border: '1px solid #2a2f45', borderRadius: 8, fontSize: 13,
-  cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+  padding: '10px 20px', background: 'transparent', color: BEIGE,
+  border: `1px solid ${NAVY_BORDER}`, borderRadius: 8, fontSize: 13,
+  cursor: 'pointer', fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif",
 }
 
 // ─── UI Primitives ────────────────────────────────────────────────────────────
@@ -131,16 +140,16 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
   return (
     <button onClick={onClick} style={{
       padding: '8px 14px', borderRadius: 8, border: 'none',
-      background: active ? 'rgba(58,175,169,0.15)' : 'transparent',
-      color: active ? '#3AAFA9' : '#6b7280', fontWeight: active ? 600 : 400,
-      fontSize: 13, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+      background: active ? 'rgba(193,145,49,0.12)' : 'transparent',
+      color: active ? GOLD : BEIGE, fontWeight: active ? 500 : 300,
+      fontSize: 13, cursor: 'pointer', fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif",
       transition: 'all 0.15s', whiteSpace: 'nowrap',
     }}>{children}</button>
   )
 }
 
 function Card({ children, style = {} }: { children: React.ReactNode; style?: React.CSSProperties }) {
-  return <div style={{ background: '#1a1d27', border: '1px solid #2a2f45', borderRadius: 12, padding: 20, ...style }}>{children}</div>
+  return <div style={{ background: NAVY_LIGHT, border: `1px solid ${NAVY_BORDER}`, borderRadius: 8, padding: 20, ...style }}>{children}</div>
 }
 
 function Badge({ text, color }: { text: string; color: string }) {
@@ -154,9 +163,9 @@ function QuadrantBadge({ quadrant }: { quadrant: 'do' | 'schedule' | 'delegate' 
 
 function Spinner() {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40, color: '#3AAFA9', gap: 10 }}>
-      <span style={{ display: 'inline-block', width: 20, height: 20, border: '2px solid rgba(58,175,169,0.2)', borderTopColor: '#3AAFA9', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-      Loading...
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40, color: GOLD, gap: 10 }}>
+      <span style={{ display: 'inline-block', width: 20, height: 20, border: `2px solid rgba(193,145,49,0.2)`, borderTopColor: GOLD, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+      <span style={{ fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif", fontWeight: 300, color: BEIGE }}>Loading...</span>
     </div>
   )
 }
@@ -167,12 +176,23 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
       <div className="modal-sheet" onClick={e => e.stopPropagation()}>
         <div className="modal-handle" />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#e8eaf0' }}>{title}</h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: 22, lineHeight: 1, padding: 0, touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>&#x2715;</button>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: WHITE, fontFamily: "'Gujarati Sangam MN', 'DM Sans', serif" }}>{title}</h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: BEIGE, cursor: 'pointer', fontSize: 22, lineHeight: 1, padding: 0, touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>&#x2715;</button>
         </div>
         {children}
       </div>
     </div>
+  )
+}
+
+// ─── Section heading (Gujarati Sangam Bold) ─────────────────────────────────
+function SectionHeading({ children, color = GOLD }: { children: React.ReactNode; color?: string }) {
+  return (
+    <h3 style={{
+      margin: 0, fontSize: 13, fontWeight: 700, color,
+      textTransform: 'uppercase', letterSpacing: '1px',
+      fontFamily: "'Gujarati Sangam MN', 'DM Sans', serif",
+    }}>{children}</h3>
   )
 }
 
@@ -192,7 +212,6 @@ function BriefingTab({ events, tasks, emails }: { events: CalendarEvent[]; tasks
   async function generateBrief() {
     setGenerating(true)
     try {
-      // Build a rich context-aware prompt with real data
       const today = new Date()
       const todayKey = localDateKey(today)
 
@@ -281,7 +300,6 @@ Keep the tone professional and direct. Use markdown formatting.`
 
       setBrief(briefText)
 
-      // Save to ai_daily_briefs table
       await fetch(`${SUPABASE_URL}/rest/v1/ai_daily_briefs`, {
         method: 'POST',
         headers: {
@@ -310,93 +328,232 @@ Keep the tone professional and direct. Use markdown formatting.`
   const q1Emails   = emails.filter(e => emailToQuadrant(e) === 'do')
   const unread     = emails.filter(e => !e.isRead).length
 
+  // Cancelled event detection
+  const isCancelled = (e: CalendarEvent) =>
+    e.subject?.toLowerCase().startsWith('cancelled') || e.subject?.toLowerCase().startsWith('canceled')
+
   return (
-    <div style={{ display: 'grid', gap: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-          <h2 style={{ margin: 0, fontSize: 22, fontWeight: 600, color: '#e8eaf0', letterSpacing: '-0.5px' }}>{greeting}, Richard</h2>
-          <span style={{ color: '#6b7280', fontSize: 13 }}>{todayStr}</span>
-        </div>
-        <button onClick={generateBrief} disabled={generating} style={{ padding: '7px 14px', background: 'rgba(201,169,110,0.12)', color: '#C9A96E', border: '1px solid rgba(201,169,110,0.25)', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: generating ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-          {generating ? 'Generating...' : 'Generate Brief'}
-        </button>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+      {/* ── Header: Greeting + Date ── */}
+      <div className="briefing-section">
+        <h2 style={{
+          margin: 0, fontSize: 28, fontWeight: 700, color: WHITE, letterSpacing: '-0.5px',
+          fontFamily: "'Gujarati Sangam MN', 'DM Sans', serif",
+          lineHeight: 1.2,
+        }}>
+          {greeting}, Richard
+        </h2>
+        <p style={{
+          margin: '6px 0 0', fontSize: 15, fontWeight: 300, color: BEIGE,
+          fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif",
+        }}>
+          {todayStr}
+        </p>
       </div>
 
-      {(q1Tasks.length > 0 || q1Emails.length > 0 || unread > 0) && (
-        <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 12, padding: '12px 16px', display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'center' }}>
-          {q1Tasks.length > 0 && <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: '#ef4444', flexShrink: 0 }} /><span style={{ fontSize: 13, color: '#e8eaf0', fontWeight: 500 }}>{q1Tasks.length} Q1 task{q1Tasks.length !== 1 ? 's' : ''} need action today</span></div>}
-          {q1Emails.length > 0 && <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: '#ef4444', flexShrink: 0 }} /><span style={{ fontSize: 13, color: '#e8eaf0', fontWeight: 500 }}>{q1Emails.length} urgent email{q1Emails.length !== 1 ? 's' : ''} require response</span></div>}
-          {unread > 0 && <span style={{ fontSize: 12, color: '#6b7280' }}>{unread} unread total</span>}
+      {/* ── Alert strip ── */}
+      {(q1Tasks.length > 0 || unread > 0) && (
+        <div className="briefing-section" style={{
+          borderLeft: `3px solid ${GOLD}`,
+          background: NAVY_LIGHT,
+          padding: '12px 16px',
+          borderRadius: `0 ${8}px ${8}px 0`,
+          display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'center',
+        }}>
+          {q1Tasks.length > 0 && (
+            <span style={{ fontSize: 14, color: WHITE, fontWeight: 400, fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif" }}>
+              <strong style={{ color: GOLD, fontWeight: 600 }}>{q1Tasks.length}</strong> Q1 task{q1Tasks.length !== 1 ? 's' : ''} need action today
+            </span>
+          )}
+          {unread > 0 && (
+            <span style={{ fontSize: 13, color: BEIGE, fontWeight: 300 }}>
+              {unread} unread total
+            </span>
+          )}
         </div>
       )}
 
-      <div className="r-grid-2" style={{ gap: 16 }}>
-        <Card>
-          <h3 style={{ margin: '0 0 14px', fontSize: 13, fontWeight: 600, color: '#3AAFA9', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Today&apos;s Calendar</h3>
-          {todayEvts.length === 0 ? <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>No meetings today — clear day ahead.</p> : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {todayEvts.map(e => (
-                <div key={e.id} style={{ display: 'flex', gap: 14, padding: '10px 12px', background: '#22263a', borderRadius: 8 }}>
-                  <div style={{ minWidth: 68, color: '#3AAFA9', fontSize: 12, fontWeight: 600, paddingTop: 2 }}>{(e.isAllDay || !e.start?.dateTime) ? 'All day' : fmt(e.start.dateTime!)}</div>
-                  <div>
-                    <div style={{ fontWeight: 500, color: '#e8eaf0', fontSize: 14, marginBottom: 2 }}>{e.subject}</div>
-                    {e.location?.displayName && <div style={{ color: '#6b7280', fontSize: 12 }}>@ {e.location.displayName}</div>}
-                    {e.organizer?.emailAddress?.name && <div style={{ color: '#6b7280', fontSize: 12 }}>with {e.organizer.emailAddress.name}</div>}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
+      {/* ── Two-column: Calendar + Q1 Tasks ── */}
+      <div className="briefing-grid">
 
-        <Card>
-          <h3 style={{ margin: '0 0 14px', fontSize: 13, fontWeight: 600, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Q1 — Do First</h3>
-          {q1Tasks.length === 0 ? <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>No urgent tasks — great start!</p> : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {q1Tasks.slice(0, 6).map(t => (
-                <div key={t.id} style={{ padding: '8px 10px', background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 8 }}>
-                  <p style={{ margin: '0 0 2px', fontSize: 13, color: '#e8eaf0', fontWeight: 500 }}>{t.title}</p>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    {t.client_name && <span style={{ fontSize: 11, color: '#3AAFA9' }}>{t.client_name}</span>}
-                    {t.due_date && <span style={{ fontSize: 11, color: '#6b7280' }}>{fmtDate(t.due_date)}</span>}
+        {/* TODAY'S CALENDAR */}
+        <div className="briefing-section">
+          <SectionHeading color={GOLD}>Today&apos;s Calendar</SectionHeading>
+          <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column' }}>
+            {todayEvts.length === 0 ? (
+              <p style={{ color: BEIGE, fontSize: 15, margin: 0, fontWeight: 300 }}>No meetings today — clear day ahead.</p>
+            ) : (
+              todayEvts.map((e, i) => {
+                const cancelled = isCancelled(e)
+                return (
+                  <div key={e.id} style={{
+                    display: 'flex', gap: 16, padding: '12px 0', minHeight: 44,
+                    borderBottom: i < todayEvts.length - 1 ? `1px solid ${NAVY_BORDER}` : 'none',
+                    opacity: cancelled ? 0.4 : 1,
+                  }}>
+                    <div style={{
+                      minWidth: 72, color: GOLD, fontSize: 13, fontWeight: 600,
+                      fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif",
+                      paddingTop: 1,
+                    }}>
+                      {(e.isAllDay || !e.start?.dateTime) ? 'All day' : fmt(e.start.dateTime!)}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{
+                        fontWeight: 400, color: WHITE, fontSize: 15,
+                        fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif",
+                        marginBottom: 2,
+                        textDecoration: cancelled ? 'line-through' : 'none',
+                      }}>
+                        {e.subject}
+                      </div>
+                      {e.location?.displayName && (
+                        <div style={{ color: BEIGE, fontSize: 13, fontWeight: 300 }}>@ {e.location.displayName}</div>
+                      )}
+                      {e.organizer?.emailAddress?.name && (
+                        <div style={{ color: BEIGE, fontSize: 13, fontWeight: 300 }}>with {e.organizer.emailAddress.name}</div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
-              {q1Tasks.length > 6 && <p style={{ fontSize: 12, color: '#6b7280', margin: 0 }}>+{q1Tasks.length - 6} more in Matrix tab</p>}
-            </div>
-          )}
-        </Card>
+                )
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Q1 — DO FIRST */}
+        <div className="briefing-section">
+          <SectionHeading color={RED}>Q1 — Do First</SectionHeading>
+          <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column' }}>
+            {q1Tasks.length === 0 ? (
+              <p style={{ color: BEIGE, fontSize: 15, margin: 0, fontWeight: 300 }}>No urgent tasks — great start.</p>
+            ) : (
+              q1Tasks.slice(0, 6).map((t, i) => {
+                const isOverdue = t.due_date && new Date(t.due_date + 'T23:59:59') < new Date()
+                return (
+                  <div key={t.id} style={{
+                    padding: '10px 0 10px 12px', minHeight: 44,
+                    borderLeft: isOverdue ? `3px solid ${RED}` : '3px solid transparent',
+                    borderBottom: i < Math.min(q1Tasks.length, 6) - 1 ? `1px solid ${NAVY_BORDER}` : 'none',
+                  }}>
+                    <p style={{
+                      margin: '0 0 2px', fontSize: 15, color: WHITE, fontWeight: 400,
+                      fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif",
+                    }}>
+                      {t.title}
+                    </p>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                      {t.client_name && (
+                        <span style={{ fontSize: 12, color: BEIGE, fontWeight: 300 }}>{t.client_name}</span>
+                      )}
+                      {t.due_date && (
+                        <span style={{ fontSize: 12, color: isOverdue ? RED : BEIGE, fontWeight: isOverdue ? 500 : 300 }}>
+                          {fmtDate(t.due_date)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })
+            )}
+            {q1Tasks.length > 6 && (
+              <p style={{ fontSize: 13, color: BEIGE, margin: '8px 0 0', fontWeight: 300 }}>
+                +{q1Tasks.length - 6} more in Tasks
+              </p>
+            )}
+          </div>
+        </div>
       </div>
 
+      {/* ── RECOMMENDED FOCUS BLOCKS — Q2 ── */}
       {q2Tasks.length > 0 && (
-        <Card>
-          <h3 style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 600, color: '#3AAFA9', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Recommended Focus Blocks — Q2 Work</h3>
-          <p style={{ margin: '0 0 12px', fontSize: 13, color: '#6b7280' }}>{q2Tasks.length} scheduled item{q2Tasks.length !== 1 ? 's' : ''} — protect 2-3 hours today for deep advisory work.</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {q2Tasks.slice(0, 3).map(t => (
-              <div key={t.id} style={{ padding: '9px 12px', background: 'rgba(58,175,169,0.06)', border: '1px solid rgba(58,175,169,0.15)', borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="briefing-section">
+          <SectionHeading color={GOLD}>Recommended Focus Blocks — Q2 Work</SectionHeading>
+          <p style={{
+            margin: '8px 0 14px', fontSize: 14, color: BEIGE, fontWeight: 300,
+            fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif",
+          }}>
+            {q2Tasks.length} scheduled item{q2Tasks.length !== 1 ? 's' : ''} — protect 2-3 hours today for deep advisory work.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {q2Tasks.slice(0, 3).map((t, i) => (
+              <div key={t.id} style={{
+                padding: '10px 0 10px 12px',
+                borderLeft: `2px solid ${GOLD}`,
+                borderBottom: i < Math.min(q2Tasks.length, 3) - 1 ? `1px solid ${NAVY_BORDER}` : 'none',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                minHeight: 44,
+              }}>
                 <div>
-                  <span style={{ fontSize: 13, color: '#e8eaf0', fontWeight: 500 }}>{t.title}</span>
-                  {t.client_name && <span style={{ fontSize: 11, color: '#3AAFA9', marginLeft: 10 }}>{t.client_name}</span>}
+                  <span style={{ fontSize: 15, color: WHITE, fontWeight: 400, fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif" }}>{t.title}</span>
+                  {t.client_name && <span style={{ fontSize: 12, color: BEIGE, marginLeft: 12, fontWeight: 300 }}>{t.client_name}</span>}
                 </div>
-                {t.estimated_minutes && <span style={{ fontSize: 11, color: '#6b7280' }}>{t.estimated_minutes}m</span>}
+                {t.estimated_minutes && <span style={{ fontSize: 12, color: BEIGE, fontWeight: 300 }}>{t.estimated_minutes}m</span>}
               </div>
             ))}
           </div>
-        </Card>
+        </div>
       )}
 
-      <Card>
-        <h3 style={{ margin: '0 0 14px', fontSize: 13, fontWeight: 600, color: '#C9A96E', textTransform: 'uppercase', letterSpacing: '0.8px' }}>AI Daily Brief</h3>
+      {/* ── FOLLOW-UPS OVERDUE ── */}
+      <div className="briefing-section">
+        <SectionHeading color={RED}>Follow-ups Overdue</SectionHeading>
+        <p style={{
+          margin: '10px 0 0', fontSize: 14, color: BEIGE, fontWeight: 300,
+          fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif",
+        }}>
+          No overdue follow-ups. Click Refresh to check sent emails (no reply after 48h).
+        </p>
+      </div>
+
+      {/* ── AI DAILY BRIEF ── */}
+      <div className="briefing-section" style={{
+        background: NAVY_LIGHT, border: `1px solid ${NAVY_BORDER}`, borderRadius: 8, padding: 20,
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <SectionHeading>AI Daily Brief</SectionHeading>
+          <button
+            onClick={generateBrief}
+            disabled={generating}
+            style={{
+              padding: '8px 18px', background: GOLD, color: NAVY,
+              border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 500,
+              cursor: generating ? 'not-allowed' : 'pointer',
+              fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif",
+              opacity: generating ? 0.7 : 1,
+              minHeight: 44,
+            }}
+          >
+            {generating ? 'Generating...' : 'Generate Brief'}
+          </button>
+        </div>
         {loading ? <Spinner /> : brief ? (
-          <div style={{ color: '#b0b8cc', fontSize: 14, lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>{brief}</div>
+          <div style={{
+            color: WHITE, fontSize: 15, lineHeight: 1.7, whiteSpace: 'pre-wrap',
+            fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif",
+            fontWeight: 300,
+          }}>
+            {brief.split('\n').map((line, i) => {
+              // Bold section headings in the brief
+              if (line.match(/^#+\s/) || line.match(/^\*\*[A-Z]/)) {
+                const cleaned = line.replace(/^#+\s*/, '').replace(/\*\*/g, '')
+                return <p key={i} style={{ margin: '16px 0 6px', fontSize: 14, fontWeight: 700, color: WHITE, fontFamily: "'Gujarati Sangam MN', 'DM Sans', serif", textTransform: 'uppercase', letterSpacing: '0.5px' }}>{cleaned}</p>
+              }
+              if (line.startsWith('* ') || line.startsWith('- ')) {
+                return <p key={i} style={{ margin: '4px 0', paddingLeft: 12, color: BEIGE }}>{line.replace(/^[*-]\s/, '')}</p>
+              }
+              if (line.trim() === '') return <div key={i} style={{ height: 8 }} />
+              return <p key={i} style={{ margin: '4px 0', color: BEIGE }}>{line}</p>
+            })}
+          </div>
         ) : (
           <div>
-            <p style={{ color: '#6b7280', fontSize: 13, margin: '0 0 8px' }}>No brief generated yet for today.</p>
-            <p style={{ color: '#3d4258', fontSize: 12, margin: 0 }}>Click Generate Brief above to create your morning briefing.</p>
+            <p style={{ color: BEIGE, fontSize: 14, margin: '0 0 8px', fontWeight: 300 }}>No brief generated yet for today.</p>
+            <p style={{ color: `${BEIGE}80`, fontSize: 13, margin: 0, fontWeight: 300 }}>Click Generate Brief to create your morning briefing.</p>
           </div>
         )}
-      </Card>
+      </div>
     </div>
   )
 }
@@ -415,7 +572,7 @@ function SwipeableEmailRow({ email, selected, onSelect, onArchive }: {
   const q      = emailToQuadrant(email)
   const qCfg   = quadrantConfig[q]
   const letter = (email.from?.name || email.from?.address || '?')[0].toUpperCase()
-  const COLORS  = ['#ef4444','#3AAFA9','#C9A96E','#8b5cf6','#f59e0b','#06b6d4']
+  const COLORS  = ['#C0392B','#C19131','#C19131','#8b5cf6','#f59e0b','#06b6d4']
   const aColor  = COLORS[(email.from?.address?.charCodeAt(0) ?? 65) % COLORS.length]
 
   function handleTouchStart(e: React.TouchEvent) {
@@ -452,7 +609,7 @@ function SwipeableEmailRow({ email, selected, onSelect, onArchive }: {
     <div style={{ position: 'relative', overflow: 'hidden', marginBottom: 1 }}>
       {/* Archive reveal — shown as row slides left */}
       <div style={{
-        position: 'absolute', inset: 0, background: '#dc2626',
+        position: 'absolute', inset: 0, background: '#C0392B',
         display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 24,
         opacity: swipeX < -15 ? Math.min(1, (-swipeX - 15) / 50) : 0,
       }}>
@@ -466,8 +623,8 @@ function SwipeableEmailRow({ email, selected, onSelect, onArchive }: {
         onTouchEnd={handleTouchEnd}
         onClick={() => { if (Math.abs(lastDx.current) < 8) onSelect() }}
         style={{
-          background: selected ? '#22263a' : '#1a1d27',
-          borderBottom: '1px solid #1e2235',
+          background: selected ? '#3f5262' : '#374857',
+          borderBottom: '1px solid rgba(217,210,190,0.1)',
           borderLeft: `3px solid ${qCfg.color}`,
           padding: '12px 14px',
           display: 'flex', gap: 12, alignItems: 'flex-start',
@@ -483,21 +640,21 @@ function SwipeableEmailRow({ email, selected, onSelect, onArchive }: {
         {/* Avatar */}
         <div style={{ width: 40, height: 40, borderRadius: '50%', background: aColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 16, color: '#fff', flexShrink: 0, position: 'relative' }}>
           {letter}
-          {!email.isRead && <span style={{ position: 'absolute', top: 0, right: 0, width: 10, height: 10, borderRadius: '50%', background: '#3AAFA9', border: '2px solid #1a1d27' }} />}
+          {!email.isRead && <span style={{ position: 'absolute', top: 0, right: 0, width: 10, height: 10, borderRadius: '50%', background: '#C19131', border: '2px solid #374857' }} />}
         </div>
         {/* Content */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 2 }}>
-            <span style={{ fontWeight: email.isRead ? 400 : 700, fontSize: 14, color: '#e8eaf0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, marginRight: 8 }}>
+            <span style={{ fontWeight: email.isRead ? 400 : 700, fontSize: 14, color: '#FFFFFF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, marginRight: 8 }}>
               {email.from?.name || email.from?.address || 'Unknown'}
             </span>
-            <span style={{ color: '#6b7280', fontSize: 11, whiteSpace: 'nowrap', flexShrink: 0 }}>{timeAgo(email.receivedDateTime)}</span>
+            <span style={{ color: '#D9D2BE', fontSize: 11, whiteSpace: 'nowrap', flexShrink: 0 }}>{timeAgo(email.receivedDateTime)}</span>
           </div>
-          <div style={{ fontSize: 13, color: email.isRead ? '#8892a4' : '#c0c8d8', fontWeight: email.isRead ? 400 : 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 3 }}>
+          <div style={{ fontSize: 13, color: email.isRead ? '#D9D2BE' : '#FFFFFF', fontWeight: email.isRead ? 400 : 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 3 }}>
             {email.subject}
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 12, color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+            <span style={{ fontSize: 12, color: '#D9D2BE', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
               {email.ai_original_email_summary ? email.ai_original_email_summary.slice(0, 80) : email.bodyPreview?.slice(0, 80)}
             </span>
             <QuadrantBadge quadrant={q} />
@@ -602,11 +759,11 @@ function EmailTab({ emails, loading, onRefresh }: { emails: Email[]; loading: bo
     other: emails.filter(e => !archived.has(e.id) && emailCategory(e) === 'other').length,
   }
 
-  const pc = (p?: string) => p === 'high' ? '#ef4444' : p === 'medium' ? '#C9A96E' : '#6b7280'
+  const pc = (p?: string) => p === 'high' ? '#C0392B' : p === 'medium' ? '#C19131' : '#D9D2BE'
 
   // Shared detail body — called as a function (not JSX component) to avoid remount
   function renderDetail(email: Email) {
-    const COLORS = ['#ef4444','#3AAFA9','#C9A96E','#8b5cf6','#f59e0b','#06b6d4']
+    const COLORS = ['#C0392B','#C19131','#C19131','#8b5cf6','#f59e0b','#06b6d4']
     const aColor = COLORS[(email.from?.address?.charCodeAt(0) ?? 65) % COLORS.length]
     const letter = (email.from?.name || email.from?.address || '?')[0].toUpperCase()
     return (
@@ -616,33 +773,33 @@ function EmailTab({ emails, loading, onRefresh }: { emails: Email[]; loading: bo
             {letter}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ margin: '0 0 2px', fontSize: 14, fontWeight: 600, color: '#e8eaf0' }}>{email.from?.name || 'Unknown'}</p>
-            <p style={{ margin: '0 0 2px', fontSize: 12, color: '#6b7280' }}>{email.from?.address}</p>
-            <p style={{ margin: 0, fontSize: 11, color: '#3d4258' }}>
+            <p style={{ margin: '0 0 2px', fontSize: 14, fontWeight: 600, color: '#FFFFFF' }}>{email.from?.name || 'Unknown'}</p>
+            <p style={{ margin: '0 0 2px', fontSize: 12, color: '#D9D2BE' }}>{email.from?.address}</p>
+            <p style={{ margin: 0, fontSize: 11, color: 'rgba(217,210,190,0.4)' }}>
               {new Date(email.receivedDateTime).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
             </p>
           </div>
         </div>
-        <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 600, color: '#e8eaf0', lineHeight: 1.4 }}>{email.subject}</h3>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16, paddingBottom: 16, borderBottom: '1px solid #2a2f45' }}>
+        <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 600, color: '#FFFFFF', lineHeight: 1.4 }}>{email.subject}</h3>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16, paddingBottom: 16, borderBottom: '1px solid rgba(217,210,190,0.15)' }}>
           <QuadrantBadge quadrant={emailToQuadrant(email)} />
-          {email.ai_category && <Badge text={email.ai_category} color="#3AAFA9" />}
+          {email.ai_category && <Badge text={email.ai_category} color="#C19131" />}
           {email.ai_priority_level && <Badge text={email.ai_priority_level} color={pc(email.ai_priority_level)} />}
         </div>
         {email.ai_original_email_summary && (
-          <div style={{ background: 'rgba(58,175,169,0.06)', border: '1px solid rgba(58,175,169,0.15)', borderRadius: 8, padding: '10px 12px', marginBottom: 16 }}>
-            <p style={{ margin: '0 0 4px', fontSize: 11, fontWeight: 600, color: '#3AAFA9', textTransform: 'uppercase', letterSpacing: '0.5px' }}>AI Summary</p>
-            <p style={{ margin: 0, fontSize: 13, color: '#b0b8cc', lineHeight: 1.6 }}>{email.ai_original_email_summary}</p>
+          <div style={{ background: 'rgba(193,145,49,0.06)', border: '1px solid rgba(193,145,49,0.15)', borderRadius: 8, padding: '10px 12px', marginBottom: 16 }}>
+            <p style={{ margin: '0 0 4px', fontSize: 11, fontWeight: 600, color: '#C19131', textTransform: 'uppercase', letterSpacing: '0.5px' }}>AI Summary</p>
+            <p style={{ margin: 0, fontSize: 13, color: '#D9D2BE', lineHeight: 1.6 }}>{email.ai_original_email_summary}</p>
           </div>
         )}
-        <p style={{ fontSize: 13, color: '#8892a4', lineHeight: 1.75, marginBottom: 16 }}>{email.bodyPreview}</p>
+        <p style={{ fontSize: 13, color: '#D9D2BE', lineHeight: 1.75, marginBottom: 16 }}>{email.bodyPreview}</p>
         {draft && (
-          <div style={{ background: '#22263a', border: '1px solid #2a2f45', borderRadius: 8, padding: 12 }}>
+          <div style={{ background: '#3f5262', border: '1px solid rgba(217,210,190,0.15)', borderRadius: 8, padding: 12 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: '#C9A96E', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Draft Reply</p>
-              <button onClick={() => setSendConfirm(true)} style={{ padding: '5px 12px', background: 'linear-gradient(135deg, #3AAFA9, #2E9E98)', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Send</button>
+              <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: '#C19131', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Draft Reply</p>
+              <button onClick={() => setSendConfirm(true)} style={{ padding: '5px 12px', background: '#C19131', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif" }}>Send</button>
             </div>
-            <textarea value={draft} onChange={e => setDraft(e.target.value)} style={{ width: '100%', minHeight: 130, background: 'transparent', border: 'none', color: '#b0b8cc', fontSize: 13, lineHeight: 1.6, resize: 'vertical', outline: 'none', fontFamily: "'DM Sans', sans-serif" }} />
+            <textarea value={draft} onChange={e => setDraft(e.target.value)} style={{ width: '100%', minHeight: 130, background: 'transparent', border: 'none', color: '#D9D2BE', fontSize: 13, lineHeight: 1.6, resize: 'vertical', outline: 'none', fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif" }} />
           </div>
         )}
       </>
@@ -654,7 +811,7 @@ function EmailTab({ emails, loading, onRefresh }: { emails: Email[]; loading: bo
       {(['all', 'q1', 'vip', 'tools', 'other'] as const).map(key => {
         const labels = { all: 'All', q1: 'Urgent', vip: 'VIP', tools: 'Tools', other: 'Other' }
         return (
-          <button key={key} onClick={() => setFilter(key)} style={{ padding: '5px 12px', borderRadius: 20, border: 'none', fontSize: 12, background: filter === key ? 'rgba(58,175,169,0.15)' : 'transparent', color: filter === key ? '#3AAFA9' : '#6b7280', fontWeight: filter === key ? 600 : 400, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>
+          <button key={key} onClick={() => setFilter(key)} style={{ padding: '5px 12px', borderRadius: 20, border: 'none', fontSize: 12, background: filter === key ? 'rgba(193,145,49,0.15)' : 'transparent', color: filter === key ? '#C19131' : '#D9D2BE', fontWeight: filter === key ? 600 : 400, cursor: 'pointer', fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif", whiteSpace: 'nowrap', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>
             {labels[key]} <span style={{ opacity: 0.6 }}>({counts[key]})</span>
           </button>
         )
@@ -672,27 +829,27 @@ function EmailTab({ emails, loading, onRefresh }: { emails: Email[]; loading: bo
             {filterBar}
             {!isMobile && (
               <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                <button onClick={onRefresh} style={{ padding: '6px 12px', background: 'transparent', color: '#6b7280', border: '1px solid #2a2f45', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Refresh</button>
-                <button onClick={() => setComposeOpen(true)} style={{ padding: '6px 14px', background: 'rgba(58,175,169,0.12)', color: '#3AAFA9', border: '1px solid rgba(58,175,169,0.3)', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>+ Compose</button>
+                <button onClick={onRefresh} style={{ padding: '6px 12px', background: 'transparent', color: '#D9D2BE', border: '1px solid rgba(217,210,190,0.15)', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif" }}>Refresh</button>
+                <button onClick={() => setComposeOpen(true)} style={{ padding: '6px 14px', background: 'rgba(193,145,49,0.12)', color: '#C19131', border: '1px solid rgba(193,145,49,0.3)', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif" }}>+ Compose</button>
               </div>
             )}
           </div>
 
           {!isMobile && (
-            <div style={{ fontSize: 11, color: '#3d4258', paddingLeft: 2 }}>
+            <div style={{ fontSize: 11, color: 'rgba(217,210,190,0.4)', paddingLeft: 2 }}>
               Shortcuts:&nbsp;
-              <kbd style={{ background: '#22263a', padding: '1px 5px', borderRadius: 3, fontSize: 10, color: '#6b7280' }}>E</kbd> archive&nbsp;&nbsp;
-              <kbd style={{ background: '#22263a', padding: '1px 5px', borderRadius: 3, fontSize: 10, color: '#6b7280' }}>R</kbd> reply&nbsp;&nbsp;
-              <kbd style={{ background: '#22263a', padding: '1px 5px', borderRadius: 3, fontSize: 10, color: '#6b7280' }}>Esc</kbd> close
+              <kbd style={{ background: '#3f5262', padding: '1px 5px', borderRadius: 3, fontSize: 10, color: '#D9D2BE' }}>E</kbd> archive&nbsp;&nbsp;
+              <kbd style={{ background: '#3f5262', padding: '1px 5px', borderRadius: 3, fontSize: 10, color: '#D9D2BE' }}>R</kbd> reply&nbsp;&nbsp;
+              <kbd style={{ background: '#3f5262', padding: '1px 5px', borderRadius: 3, fontSize: 10, color: '#D9D2BE' }}>Esc</kbd> close
             </div>
           )}
 
           {isMobile && (
-            <p style={{ margin: 0, fontSize: 11, color: '#3d4258', paddingLeft: 2 }}>Swipe left to archive</p>
+            <p style={{ margin: 0, fontSize: 11, color: 'rgba(217,210,190,0.4)', paddingLeft: 2 }}>Swipe left to archive</p>
           )}
 
           {loading ? <Spinner /> : visible.length === 0 ? (
-            <Card><p style={{ color: '#6b7280', margin: 0, fontSize: 13 }}>No emails in this view.</p></Card>
+            <Card><p style={{ color: '#D9D2BE', margin: 0, fontSize: 13 }}>No emails in this view.</p></Card>
           ) : (
             <div style={{ touchAction: 'pan-y' }}>
               {visible.map(email => (
@@ -712,14 +869,14 @@ function EmailTab({ emails, loading, onRefresh }: { emails: Email[]; loading: bo
         {selected && !isMobile && (
           <Card style={{ position: 'sticky', top: 72, alignSelf: 'start', maxHeight: 'calc(100vh - 96px)', overflow: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
-              <button onClick={() => { setSelected(null); setDraft('') }} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: 20 }}>&#x2715;</button>
+              <button onClick={() => { setSelected(null); setDraft('') }} style={{ background: 'none', border: 'none', color: '#D9D2BE', cursor: 'pointer', fontSize: 20 }}>&#x2715;</button>
             </div>
             {renderDetail(selected)}
             <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              <button onClick={() => draftReply(selected)} disabled={drafting} style={{ flex: 1, padding: '9px 14px', background: 'rgba(58,175,169,0.12)', color: '#3AAFA9', border: '1px solid rgba(58,175,169,0.3)', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: drafting ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+              <button onClick={() => draftReply(selected)} disabled={drafting} style={{ flex: 1, padding: '9px 14px', background: 'rgba(193,145,49,0.12)', color: '#C19131', border: '1px solid rgba(193,145,49,0.3)', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: drafting ? 'not-allowed' : 'pointer', fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif" }}>
                 {drafting ? 'Drafting...' : 'Draft AI Reply'}
               </button>
-              <button onClick={() => archiveEmail(selected.id)} style={{ padding: '9px 14px', background: 'transparent', color: '#6b7280', border: '1px solid #2a2f45', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Archive</button>
+              <button onClick={() => archiveEmail(selected.id)} style={{ padding: '9px 14px', background: 'transparent', color: '#D9D2BE', border: '1px solid rgba(217,210,190,0.15)', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif" }}>Archive</button>
             </div>
           </Card>
         )}
@@ -728,7 +885,7 @@ function EmailTab({ emails, loading, onRefresh }: { emails: Email[]; loading: bo
       {/* ── Mobile: full-screen detail (Outlook-style slide from right) ── */}
       <div style={{
         position: 'fixed', inset: 0, zIndex: 300,
-        background: '#0f1117',
+        background: '#2E3D49',
         transform: (selected && isMobile) ? 'translateX(0)' : 'translateX(100%)',
         transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1)',
         display: 'flex', flexDirection: 'column',
@@ -737,17 +894,17 @@ function EmailTab({ emails, loading, onRefresh }: { emails: Email[]; loading: bo
         pointerEvents: (selected && isMobile) ? 'auto' : 'none',
       }}>
         {/* Nav header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 56, padding: '0 16px', background: '#1a1d27', borderBottom: '1px solid #2a2f45', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 56, padding: '0 16px', background: '#374857', borderBottom: '1px solid rgba(217,210,190,0.15)', flexShrink: 0 }}>
           <button
             onClick={() => { setSelected(null); setDraft('') }}
-            style={{ background: 'none', border: 'none', color: '#3AAFA9', fontSize: 17, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", display: 'flex', alignItems: 'center', gap: 4, padding: '8px 0', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+            style={{ background: 'none', border: 'none', color: '#C19131', fontSize: 17, cursor: 'pointer', fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif", display: 'flex', alignItems: 'center', gap: 4, padding: '8px 0', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
           >
             ‹ Inbox
           </button>
           {selected && (
             <button
               onClick={() => archiveEmail(selected.id)}
-              style={{ background: 'none', border: 'none', color: '#6b7280', fontSize: 13, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", padding: '8px 0', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+              style={{ background: 'none', border: 'none', color: '#D9D2BE', fontSize: 13, cursor: 'pointer', fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif", padding: '8px 0', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
             >
               Archive
             </button>
@@ -760,18 +917,18 @@ function EmailTab({ emails, loading, onRefresh }: { emails: Email[]; loading: bo
         </div>
 
         {/* Bottom action bar */}
-        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '12px 16px', paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 0px))', background: '#1a1d27', borderTop: '1px solid #2a2f45', display: 'flex', gap: 12 }}>
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '12px 16px', paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 0px))', background: '#374857', borderTop: '1px solid rgba(217,210,190,0.15)', display: 'flex', gap: 12 }}>
           <button
             onClick={() => selected && draftReply(selected)}
             disabled={drafting}
-            style={{ flex: 1, padding: '13px 16px', background: 'linear-gradient(135deg, #3AAFA9, #2E9E98)', color: '#fff', border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 600, cursor: drafting ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif", touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+            style={{ flex: 1, padding: '13px 16px', background: '#C19131', color: '#fff', border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 600, cursor: drafting ? 'not-allowed' : 'pointer', fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif", touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
           >
             {drafting ? 'Drafting...' : '✦ AI Reply'}
           </button>
           <button
             onClick={() => setSendConfirm(true)}
             disabled={!draft}
-            style={{ padding: '13px 18px', background: draft ? 'rgba(58,175,169,0.12)' : 'transparent', color: draft ? '#3AAFA9' : '#3d4258', border: `1px solid ${draft ? 'rgba(58,175,169,0.3)' : '#2a2f45'}`, borderRadius: 10, fontSize: 15, cursor: draft ? 'pointer' : 'default', fontFamily: "'DM Sans', sans-serif", touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+            style={{ padding: '13px 18px', background: draft ? 'rgba(193,145,49,0.12)' : 'transparent', color: draft ? '#C19131' : 'rgba(217,210,190,0.4)', border: `1px solid ${draft ? 'rgba(193,145,49,0.3)' : 'rgba(217,210,190,0.15)'}`, borderRadius: 10, fontSize: 15, cursor: draft ? 'pointer' : 'default', fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif", touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
           >
             Send
           </button>
@@ -786,10 +943,10 @@ function EmailTab({ emails, loading, onRefresh }: { emails: Email[]; loading: bo
             position: 'fixed', right: 20,
             bottom: 'calc(72px + env(safe-area-inset-bottom, 0px))',
             width: 56, height: 56, borderRadius: '50%',
-            background: 'linear-gradient(135deg, #3AAFA9, #2E9E98)',
+            background: '#C19131',
             color: '#fff', border: 'none', fontSize: 30,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 4px 20px rgba(58,175,169,0.45)',
+            boxShadow: '0 4px 20px rgba(193,145,49,0.45)',
             cursor: 'pointer', zIndex: 150,
             touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
           }}
@@ -815,12 +972,12 @@ function EmailTab({ emails, loading, onRefresh }: { emails: Email[]; loading: bo
       {sendConfirm && (
         <Modal title="Confirm Send" onClose={() => setSendConfirm(false)}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div style={{ background: '#0f1117', border: '1px solid #2a2f45', borderRadius: 8, padding: 14 }}>
-              <p style={{ margin: '0 0 6px', fontSize: 12, color: '#6b7280' }}>To: <strong style={{ color: '#e8eaf0' }}>{selected ? (selected.from?.address || '') : composeTo}</strong></p>
-              <p style={{ margin: '0 0 10px', fontSize: 12, color: '#6b7280' }}>Subject: <strong style={{ color: '#e8eaf0' }}>{selected ? `Re: ${selected.subject}` : composeSubj}</strong></p>
-              <p style={{ margin: 0, fontSize: 13, color: '#b0b8cc', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{(draft || composeBody).slice(0, 300)}{(draft || composeBody).length > 300 ? '...' : ''}</p>
+            <div style={{ background: '#2E3D49', border: '1px solid rgba(217,210,190,0.15)', borderRadius: 8, padding: 14 }}>
+              <p style={{ margin: '0 0 6px', fontSize: 12, color: '#D9D2BE' }}>To: <strong style={{ color: '#FFFFFF' }}>{selected ? (selected.from?.address || '') : composeTo}</strong></p>
+              <p style={{ margin: '0 0 10px', fontSize: 12, color: '#D9D2BE' }}>Subject: <strong style={{ color: '#FFFFFF' }}>{selected ? `Re: ${selected.subject}` : composeSubj}</strong></p>
+              <p style={{ margin: 0, fontSize: 13, color: '#D9D2BE', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{(draft || composeBody).slice(0, 300)}{(draft || composeBody).length > 300 ? '...' : ''}</p>
             </div>
-            <p style={{ margin: 0, fontSize: 12, color: '#C9A96E' }}>This will send immediately. Please review before confirming.</p>
+            <p style={{ margin: 0, fontSize: 12, color: '#C19131' }}>This will send immediately. Please review before confirming.</p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button onClick={() => setSendConfirm(false)} style={secondaryBtnStyle}>Cancel</button>
               <button onClick={sendEmail} disabled={sending} style={{ ...primaryBtnStyle, opacity: sending ? 0.7 : 1 }}>{sending ? 'Sending...' : 'Send Now'}</button>
@@ -866,7 +1023,7 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
   // (React state updates are async; dragover fires before the re-render)
   const dragIdRef                       = useRef<string | null>(null)
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  // ── Helpers ─────────────────────��─────────────────────────────────────────
   const qLabel = (q: QKey) => q === 'do' ? 'Q1' : q === 'schedule' ? 'Q2' : q === 'delegate' ? 'Q3' : 'Q4'
   const fmtDue = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric' })
 
@@ -1063,20 +1220,20 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
 
       {/* ── Header ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#e8eaf0' }}>Eisenhower Matrix</h3>
+        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#FFFFFF' }}>Eisenhower Matrix</h3>
         <div style={{ display: 'flex', gap: 8 }}>
           <button
             onClick={e => { e.stopPropagation(); const next = !showDone; setShowDone(next); if (next) loadDone() }}
-            style={{ padding: '7px 12px', background: showDone ? 'rgba(34,197,94,0.1)' : 'transparent', color: showDone ? '#22c55e' : '#6b7280', border: `1px solid ${showDone ? 'rgba(34,197,94,0.3)' : '#2a2f45'}`, borderRadius: 8, fontSize: 12, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
+            style={{ padding: '7px 12px', background: showDone ? 'rgba(193,145,49,0.1)' : 'transparent', color: showDone ? '#C19131' : '#D9D2BE', border: `1px solid ${showDone ? 'rgba(193,145,49,0.3)' : 'rgba(217,210,190,0.15)'}`, borderRadius: 8, fontSize: 12, cursor: 'pointer', fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif" }}
           >&#10003; Done</button>
-          <button onClick={e => { e.stopPropagation(); setAddOpen(true) }} style={{ padding: '7px 14px', background: 'rgba(58,175,169,0.12)', color: '#3AAFA9', border: '1px solid rgba(58,175,169,0.3)', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>+ Add Task</button>
+          <button onClick={e => { e.stopPropagation(); setAddOpen(true) }} style={{ padding: '7px 14px', background: 'rgba(193,145,49,0.12)', color: '#C19131', border: '1px solid rgba(193,145,49,0.3)', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif" }}>+ Add Task</button>
         </div>
       </div>
 
       {q1Count > 8 && (
-        <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 10, padding: '10px 16px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ background: 'rgba(192,57,43,0.08)', border: '1px solid rgba(192,57,43,0.25)', borderRadius: 10, padding: '10px 16px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 16 }}>&#9888;</span>
-          <span style={{ fontSize: 13, color: '#ef4444', fontWeight: 500 }}>Q1 overload: {q1Count} urgent tasks. Consider delegating or rescheduling.</span>
+          <span style={{ fontSize: 13, color: '#C0392B', fontWeight: 500 }}>Q1 overload: {q1Count} urgent tasks. Consider delegating or rescheduling.</span>
         </div>
       )}
 
@@ -1097,11 +1254,11 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: cfg.color }} />
                 <span style={{ fontSize: 12, fontWeight: 700, color: cfg.color, textTransform: 'uppercase', letterSpacing: '0.6px' }}>{cfg.label}</span>
-                <span style={{ marginLeft: 'auto', fontSize: 11, color: '#6b7280' }}>{qTasks.length}</span>
+                <span style={{ marginLeft: 'auto', fontSize: 11, color: '#D9D2BE' }}>{qTasks.length}</span>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {qTasks.length === 0
-                  ? <p style={{ color: isOver ? cfg.color : '#3d4258', fontSize: 12, margin: 0, textAlign: 'center', padding: '12px 0', opacity: isOver ? 1 : 0.6 }}>{isOver ? '↓ Drop here' : 'No tasks'}</p>
+                  ? <p style={{ color: isOver ? cfg.color : 'rgba(217,210,190,0.4)', fontSize: 12, margin: 0, textAlign: 'center', padding: '12px 0', opacity: isOver ? 1 : 0.6 }}>{isOver ? '↓ Drop here' : 'No tasks'}</p>
                   : qTasks.map(t => {
                     const isDragging   = dragId === t.id
                     const isDropTarget = dropTargetId === t.id && dragId !== null && dragId !== t.id
@@ -1132,8 +1289,8 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
                         }}
                         onClick={e => { e.stopPropagation(); if (!dragIdRef.current) setDetailTask(t) }}
                         style={{
-                          background: isDropTarget ? cfg.color + '12' : '#1a1d27',
-                          borderBottom: '1px solid #1e2235',
+                          background: isDropTarget ? cfg.color + '12' : '#374857',
+                          borderBottom: '1px solid rgba(217,210,190,0.1)',
                           borderLeft: `3px solid ${cfg.color}`,
                           borderTop: 'none', borderRight: 'none',
                           outline: isDropTarget ? `2px dashed ${cfg.color}` : 'none',
@@ -1147,11 +1304,11 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
                         {isDropTarget && (
                           <div style={{ fontSize: 11, color: cfg.color, marginBottom: 4, fontWeight: 600 }}>⊕ Drop to combine</div>
                         )}
-                        <p style={{ margin: '0 0 4px', fontSize: 13, color: '#e8eaf0', fontWeight: q === 'do' ? 600 : 400, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</p>
+                        <p style={{ margin: '0 0 4px', fontSize: 13, color: '#FFFFFF', fontWeight: q === 'do' ? 600 : 400, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</p>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                          {t.client_name && <span style={{ fontSize: 11, color: '#3AAFA9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.client_name}</span>}
-                          {t.due_date && <span style={{ fontSize: 11, color: '#6b7280' }}>{fmtDue(t.due_date)}</span>}
-                          {t.estimated_minutes && <span style={{ fontSize: 11, color: '#6b7280' }}>{t.estimated_minutes}m</span>}
+                          {t.client_name && <span style={{ fontSize: 11, color: '#C19131', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.client_name}</span>}
+                          {t.due_date && <span style={{ fontSize: 11, color: '#D9D2BE' }}>{fmtDue(t.due_date)}</span>}
+                          {t.estimated_minutes && <span style={{ fontSize: 11, color: '#D9D2BE' }}>{t.estimated_minutes}m</span>}
                         </div>
                       </div>
                     )
@@ -1166,25 +1323,25 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
       {showDone && (
         <div style={{ marginTop: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-            <h4 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#22c55e' }}>Completed</h4>
-            <button onClick={loadDone} style={{ background: 'transparent', border: 'none', color: '#6b7280', fontSize: 12, cursor: 'pointer', padding: '2px 6px' }}>&#x21BB; Refresh</button>
+            <h4 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#C19131' }}>Completed</h4>
+            <button onClick={loadDone} style={{ background: 'transparent', border: 'none', color: '#D9D2BE', fontSize: 12, cursor: 'pointer', padding: '2px 6px' }}>&#x21BB; Refresh</button>
           </div>
           {loadingDone
-            ? <p style={{ color: '#6b7280', fontSize: 13 }}>Loading…</p>
+            ? <p style={{ color: '#D9D2BE', fontSize: 13 }}>Loading…</p>
             : doneTasks.length === 0
-              ? <p style={{ color: '#3d4258', fontSize: 13 }}>No completed tasks yet.</p>
+              ? <p style={{ color: 'rgba(217,210,190,0.4)', fontSize: 13 }}>No completed tasks yet.</p>
               : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {doneTasks.map(t => (
-                    <div key={t.id} style={{ background: '#1a1d27', border: '1px solid #2a2f45', borderRadius: 8, padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8, opacity: 0.65 }}>
-                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', flexShrink: 0 }} />
+                    <div key={t.id} style={{ background: '#374857', border: '1px solid rgba(217,210,190,0.15)', borderRadius: 8, padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8, opacity: 0.65 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#C19131', flexShrink: 0 }} />
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <span style={{ fontSize: 13, color: '#6b7280', textDecoration: 'line-through' }}>{t.title}</span>
-                        {t.client_name && <span style={{ fontSize: 11, color: '#3AAFA9', marginLeft: 8 }}>{t.client_name}</span>}
+                        <span style={{ fontSize: 13, color: '#D9D2BE', textDecoration: 'line-through' }}>{t.title}</span>
+                        {t.client_name && <span style={{ fontSize: 11, color: '#C19131', marginLeft: 8 }}>{t.client_name}</span>}
                         {t.due_date && <span style={{ fontSize: 11, color: '#4b5563', marginLeft: 8 }}>{fmtDue(t.due_date)}</span>}
                       </div>
                       <button onClick={() => deleteTask(t.id)} disabled={deleting === t.id}
-                        style={{ background: 'transparent', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: 14, padding: '2px 6px', flexShrink: 0, opacity: deleting === t.id ? 0.4 : 1 }}
+                        style={{ background: 'transparent', border: 'none', color: '#D9D2BE', cursor: 'pointer', fontSize: 14, padding: '2px 6px', flexShrink: 0, opacity: deleting === t.id ? 0.4 : 1 }}
                         title="Delete">&#x2715;</button>
                     </div>
                   ))}
@@ -1213,12 +1370,12 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
         const t   = detailTask
         const cfg = quadrantConfig[t.quadrant]
         const qFullLabel = t.quadrant === 'do' ? 'Q1 · Do First' : t.quadrant === 'schedule' ? 'Q2 · Schedule' : t.quadrant === 'delegate' ? 'Q3 · Delegate' : 'Q4 · Eliminate'
-        const statusColors: Record<string, string> = { open: '#3AAFA9', in_progress: '#C9A96E', waiting: '#6b7280', done: '#22c55e', cancelled: '#ef4444' }
-        const statusColor = statusColors[t.status] || '#6b7280'
+        const statusColors: Record<string, string> = { open: '#C19131', in_progress: '#C19131', waiting: '#D9D2BE', done: '#C19131', cancelled: '#C0392B' }
+        const statusColor = statusColors[t.status] || '#D9D2BE'
         const MetaRow = ({ label, value }: { label: string; value: React.ReactNode }) => (
-          <div style={{ display: 'flex', gap: 12, padding: '8px 0', borderBottom: '1px solid #1e2235' }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', minWidth: 100, paddingTop: 1 }}>{label}</span>
-            <span style={{ fontSize: 13, color: '#b0b8cc', flex: 1 }}>{value}</span>
+          <div style={{ display: 'flex', gap: 12, padding: '8px 0', borderBottom: '1px solid rgba(217,210,190,0.1)' }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#D9D2BE', textTransform: 'uppercase', letterSpacing: '0.5px', minWidth: 100, paddingTop: 1 }}>{label}</span>
+            <span style={{ fontSize: 13, color: '#D9D2BE', flex: 1 }}>{value}</span>
           </div>
         )
         return (
@@ -1230,20 +1387,20 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
                 <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 4, background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}>{qFullLabel}</span>
                 <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: `${statusColor}18`, color: statusColor, fontWeight: 600, textTransform: 'capitalize' }}>{t.status.replace('_', ' ')}</span>
               </div>
-              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: '#e8eaf0', lineHeight: 1.35 }}>{t.title}</h2>
+              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: '#FFFFFF', lineHeight: 1.35 }}>{t.title}</h2>
             </div>
 
             {/* ── B: Description ── */}
             {t.description && (
-              <div style={{ background: '#0f1117', border: '1px solid #2a2f45', borderRadius: 8, padding: '10px 14px', marginBottom: 16 }}>
-                <p style={{ margin: 0, fontSize: 13, color: '#b0b8cc', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{t.description}</p>
+              <div style={{ background: '#2E3D49', border: '1px solid rgba(217,210,190,0.15)', borderRadius: 8, padding: '10px 14px', marginBottom: 16 }}>
+                <p style={{ margin: 0, fontSize: 13, color: '#D9D2BE', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{t.description}</p>
               </div>
             )}
 
             {/* ── C: Meta rows ── */}
             {(t.client_name || t.due_date || t.estimated_minutes || t.priority_score != null || t.delegated_to || t.delegation_channel || t.source_type || (t.tags && t.tags.length > 0) || t.created_at) && (
               <div style={{ marginBottom: 16 }}>
-                {t.client_name         && <MetaRow label="Client"       value={<span style={{ color: '#3AAFA9' }}>{t.client_name}</span>} />}
+                {t.client_name         && <MetaRow label="Client"       value={<span style={{ color: '#C19131' }}>{t.client_name}</span>} />}
                 {t.due_date            && <MetaRow label="Due"           value={new Date(t.due_date + (t.due_date.includes('T') ? '' : 'T00:00:00')).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })} />}
                 {t.estimated_minutes   && <MetaRow label="Estimate"      value={`${t.estimated_minutes} min`} />}
                 {t.priority_score != null && <MetaRow label="Priority"   value={String(t.priority_score)} />}
@@ -1253,7 +1410,7 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
                 {t.tags && t.tags.length > 0 && (
                   <MetaRow label="Tags" value={
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      {t.tags.map(tag => <span key={tag} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: 'rgba(58,175,169,0.12)', color: '#3AAFA9', border: '1px solid rgba(58,175,169,0.25)' }}>{tag}</span>)}
+                      {t.tags.map(tag => <span key={tag} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: 'rgba(193,145,49,0.12)', color: '#C19131', border: '1px solid rgba(193,145,49,0.25)' }}>{tag}</span>)}
                     </div>
                   } />
                 )}
@@ -1264,13 +1421,13 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
             {/* ── D: Move to ── */}
             {t.status !== 'done' && (
               <div style={{ marginBottom: 20 }}>
-                <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Move to</p>
+                <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 600, color: '#D9D2BE', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Move to</p>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   {quadrants.filter(qk => qk !== t.quadrant).map(qk => {
                     const qc = quadrantConfig[qk]
                     return (
                       <button key={qk} onClick={() => { moveTask(t.id, qk); setDetailTask(null) }}
-                        style={{ padding: '6px 14px', borderRadius: 6, background: qc.bg, color: qc.color, border: `1px solid ${qc.border}`, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                        style={{ padding: '6px 14px', borderRadius: 6, background: qc.bg, color: qc.color, border: `1px solid ${qc.border}`, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif" }}>
                         {qLabel(qk)}
                       </button>
                     )
@@ -1282,17 +1439,17 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
             {/* ── E: Action bar ── */}
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => { setDetailTask(null); openEdit(t) }}
-                style={{ flex: 1, padding: '11px 12px', background: 'rgba(58,175,169,0.08)', color: '#3AAFA9', border: '1px solid rgba(58,175,169,0.25)', borderRadius: 10, fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                style={{ flex: 1, padding: '11px 12px', background: 'rgba(193,145,49,0.08)', color: '#C19131', border: '1px solid rgba(193,145,49,0.25)', borderRadius: 10, fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif" }}>
                 Edit
               </button>
               {t.status !== 'done' && (
                 <button onClick={() => { setDetailTask(null); completeTask(t.id) }} disabled={completing === t.id}
-                  style={{ flex: 1, padding: '11px 12px', background: 'rgba(34,197,94,0.08)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.25)', borderRadius: 10, fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", opacity: completing === t.id ? 0.6 : 1 }}>
+                  style={{ flex: 1, padding: '11px 12px', background: 'rgba(193,145,49,0.08)', color: '#C19131', border: '1px solid rgba(193,145,49,0.25)', borderRadius: 10, fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif", opacity: completing === t.id ? 0.6 : 1 }}>
                   ✓ Done
                 </button>
               )}
               <button onClick={() => { setDetailTask(null); deleteTask(t.id) }} disabled={deleting === t.id}
-                style={{ padding: '11px 14px', background: 'transparent', color: '#ef4444', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 10, fontSize: 14, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", opacity: deleting === t.id ? 0.6 : 1 }}>
+                style={{ padding: '11px 14px', background: 'transparent', color: '#C0392B', border: '1px solid rgba(192,57,43,0.25)', borderRadius: 10, fontSize: 14, cursor: 'pointer', fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif", opacity: deleting === t.id ? 0.6 : 1 }}>
                 Delete
               </button>
             </div>
@@ -1308,10 +1465,10 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
           position: 'fixed', right: 20,
           bottom: 'calc(72px + env(safe-area-inset-bottom, 0px))',
           width: 52, height: 52, borderRadius: '50%',
-          background: 'linear-gradient(135deg, #3AAFA9, #2E9E98)',
+          background: '#C19131',
           color: '#fff', border: 'none', fontSize: 28,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 4px 20px rgba(58,175,169,0.4)',
+          boxShadow: '0 4px 20px rgba(193,145,49,0.4)',
           cursor: 'pointer', zIndex: 150,
           touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
         }}
@@ -1402,34 +1559,34 @@ function CalendarTab({ events, tasks }: { events: CalendarEvent[]; tasks: Eisenh
     const isAllDay = e.isAllDay || !e.start?.dateTime
     return (
       <>
-        <h3 style={{ margin: '0 0 16px', fontSize: 17, fontWeight: 600, color: '#e8eaf0', lineHeight: 1.4 }}>{e.subject}</h3>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '12px 14px', background: 'rgba(58,175,169,0.06)', border: '1px solid rgba(58,175,169,0.15)', borderRadius: 10, marginBottom: 10 }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3AAFA9" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0, marginTop: 1 }}><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        <h3 style={{ margin: '0 0 16px', fontSize: 17, fontWeight: 600, color: '#FFFFFF', lineHeight: 1.4 }}>{e.subject}</h3>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '12px 14px', background: 'rgba(193,145,49,0.06)', border: '1px solid rgba(193,145,49,0.15)', borderRadius: 10, marginBottom: 10 }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C19131" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0, marginTop: 1 }}><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
           <div>
-            <p style={{ margin: '0 0 3px', fontSize: 14, color: '#e8eaf0', fontWeight: 500 }}>
+            <p style={{ margin: '0 0 3px', fontSize: 14, color: '#FFFFFF', fontWeight: 500 }}>
               {isAllDay ? 'All Day' : `${fmt(e.start.dateTime!)} – ${fmt(e.end?.dateTime ?? '')}`}
             </p>
-            <p style={{ margin: 0, fontSize: 12, color: '#6b7280' }}>
+            <p style={{ margin: 0, fontSize: 12, color: '#D9D2BE' }}>
               {evtStart(e).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
             </p>
           </div>
         </div>
         {e.location?.displayName && (
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 14px', background: '#22263a', borderRadius: 10, marginBottom: 10 }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
-            <span style={{ fontSize: 13, color: '#c0c8d8' }}>{e.location.displayName}</span>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 14px', background: '#3f5262', borderRadius: 10, marginBottom: 10 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D9D2BE" strokeWidth="2" strokeLinecap="round"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
+            <span style={{ fontSize: 13, color: '#FFFFFF' }}>{e.location.displayName}</span>
           </div>
         )}
         {e.organizer?.emailAddress?.name && (
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 14px', background: '#22263a', borderRadius: 10, marginBottom: 10 }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-            <span style={{ fontSize: 13, color: '#c0c8d8' }}>{e.organizer.emailAddress.name}</span>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 14px', background: '#3f5262', borderRadius: 10, marginBottom: 10 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D9D2BE" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+            <span style={{ fontSize: 13, color: '#FFFFFF' }}>{e.organizer.emailAddress.name}</span>
           </div>
         )}
         {e.bodyPreview && (
-          <div style={{ background: '#22263a', border: '1px solid #2a2f45', borderRadius: 10, padding: '12px 14px' }}>
-            <p style={{ margin: '0 0 6px', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Description</p>
-            <p style={{ margin: 0, fontSize: 13, color: '#b0b8cc', lineHeight: 1.6 }}>{e.bodyPreview}</p>
+          <div style={{ background: '#3f5262', border: '1px solid rgba(217,210,190,0.15)', borderRadius: 10, padding: '12px 14px' }}>
+            <p style={{ margin: '0 0 6px', fontSize: 11, fontWeight: 600, color: '#D9D2BE', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Description</p>
+            <p style={{ margin: 0, fontSize: 13, color: '#D9D2BE', lineHeight: 1.6 }}>{e.bodyPreview}</p>
           </div>
         )}
       </>
@@ -1443,25 +1600,25 @@ function CalendarTab({ events, tasks }: { events: CalendarEvent[]; tasks: Eisenh
       <>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
           <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: qCfg.bg, color: qCfg.color, border: `1px solid ${qCfg.border}` }}>{qLabel} — {qCfg.label}</span>
-          {t.client_name && <Badge text={t.client_name} color="#3AAFA9" />}
+          {t.client_name && <Badge text={t.client_name} color="#C19131" />}
         </div>
-        <h3 style={{ margin: '0 0 16px', fontSize: 17, fontWeight: 600, color: '#e8eaf0', lineHeight: 1.4 }}>{t.title}</h3>
+        <h3 style={{ margin: '0 0 16px', fontSize: 17, fontWeight: 600, color: '#FFFFFF', lineHeight: 1.4 }}>{t.title}</h3>
         {t.due_date && (
           <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 14px', background: qCfg.bg, border: `1px solid ${qCfg.border}`, borderRadius: 10, marginBottom: 10 }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={qCfg.color} strokeWidth="2" strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>
-            <span style={{ fontSize: 13, color: '#e8eaf0' }}>Due {fmtDate(t.due_date)}</span>
+            <span style={{ fontSize: 13, color: '#FFFFFF' }}>Due {fmtDate(t.due_date)}</span>
           </div>
         )}
         {t.estimated_minutes && (
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 14px', background: '#22263a', borderRadius: 10, marginBottom: 10 }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-            <span style={{ fontSize: 13, color: '#c0c8d8' }}>Est. {t.estimated_minutes} min</span>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 14px', background: '#3f5262', borderRadius: 10, marginBottom: 10 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D9D2BE" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            <span style={{ fontSize: 13, color: '#FFFFFF' }}>Est. {t.estimated_minutes} min</span>
           </div>
         )}
         {t.notes && (
-          <div style={{ background: '#22263a', border: '1px solid #2a2f45', borderRadius: 10, padding: '12px 14px' }}>
-            <p style={{ margin: '0 0 6px', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Notes</p>
-            <p style={{ margin: 0, fontSize: 13, color: '#b0b8cc', lineHeight: 1.6 }}>{t.notes}</p>
+          <div style={{ background: '#3f5262', border: '1px solid rgba(217,210,190,0.15)', borderRadius: 10, padding: '12px 14px' }}>
+            <p style={{ margin: '0 0 6px', fontSize: 11, fontWeight: 600, color: '#D9D2BE', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Notes</p>
+            <p style={{ margin: 0, fontSize: 13, color: '#D9D2BE', lineHeight: 1.6 }}>{t.notes}</p>
           </div>
         )}
       </>
@@ -1473,7 +1630,7 @@ function CalendarTab({ events, tasks }: { events: CalendarEvent[]; tasks: Eisenh
     : null
 
   const viewBtn = (v: 'agenda'|'week', label: string) => (
-    <button key={v} onClick={() => setView(v)} style={{ padding: '5px 14px', borderRadius: 6, border: 'none', fontSize: 12, background: view === v ? 'rgba(58,175,169,0.15)' : 'transparent', color: view === v ? '#3AAFA9' : '#6b7280', fontWeight: view === v ? 600 : 400, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>{label}</button>
+    <button key={v} onClick={() => setView(v)} style={{ padding: '5px 14px', borderRadius: 6, border: 'none', fontSize: 12, background: view === v ? 'rgba(193,145,49,0.15)' : 'transparent', color: view === v ? '#C19131' : '#D9D2BE', fontWeight: view === v ? 600 : 400, cursor: 'pointer', fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif", touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>{label}</button>
   )
 
   return (
@@ -1484,8 +1641,8 @@ function CalendarTab({ events, tasks }: { events: CalendarEvent[]; tasks: Eisenh
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#e8eaf0' }}>Calendar</h3>
-            <div style={{ display: 'flex', gap: 2, background: '#1a1d27', border: '1px solid #2a2f45', borderRadius: 8, padding: 3 }}>
+            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#FFFFFF' }}>Calendar</h3>
+            <div style={{ display: 'flex', gap: 2, background: '#374857', border: '1px solid rgba(217,210,190,0.15)', borderRadius: 8, padding: 3 }}>
               {viewBtn('agenda', 'Agenda')}
               {viewBtn('week', 'Week')}
             </div>
@@ -1494,14 +1651,14 @@ function CalendarTab({ events, tasks }: { events: CalendarEvent[]; tasks: Eisenh
           {/* ── Agenda view ── */}
           {view === 'agenda' && (
             sortedDays.length === 0
-              ? <Card><p style={{ color: '#6b7280', margin: 0, fontSize: 13 }}>No upcoming events or tasks.</p></Card>
+              ? <Card><p style={{ color: '#D9D2BE', margin: 0, fontSize: 13 }}>No upcoming events or tasks.</p></Card>
               : <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {sortedDays.slice(0, 14).map(([key, group]) => (
                     <div key={key} style={{ marginBottom: 8 }}>
                       {/* Day header */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, paddingTop: 4 }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: group.isToday ? '#3AAFA9' : '#6b7280', textTransform: 'uppercase', letterSpacing: '0.6px', whiteSpace: 'nowrap' }}>{group.label}</span>
-                        <div style={{ flex: 1, height: 1, background: '#2a2f45' }} />
+                        <span style={{ fontSize: 11, fontWeight: 700, color: group.isToday ? '#C19131' : '#D9D2BE', textTransform: 'uppercase', letterSpacing: '0.6px', whiteSpace: 'nowrap' }}>{group.label}</span>
+                        <div style={{ flex: 1, height: 1, background: 'rgba(217,210,190,0.15)' }} />
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                         {/* Events */}
@@ -1510,19 +1667,19 @@ function CalendarTab({ events, tasks }: { events: CalendarEvent[]; tasks: Eisenh
                           const sel = selected?.type === 'event' && selected.data.id === e.id
                           return (
                             <div key={e.id} onClick={() => setSelected(sel ? null : { type: 'event', data: e })}
-                              style={{ display: 'flex', background: sel ? '#22263a' : '#1a1d27', border: `1px solid ${sel ? '#3AAFA9' : '#2a2f45'}`, borderLeft: '3px solid #3AAFA9', borderRadius: 10, overflow: 'hidden', cursor: 'pointer', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>
-                              <div style={{ padding: '10px 12px', width: 68, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(58,175,169,0.06)', borderRight: '1px solid #2a2f45' }}>
-                                <span style={{ fontSize: 11, fontWeight: 700, color: '#3AAFA9', textAlign: 'center', lineHeight: 1.3 }}>{isAllDay ? 'All\nDay' : fmt(e.start.dateTime!)}</span>
+                              style={{ display: 'flex', background: sel ? '#3f5262' : '#374857', border: `1px solid ${sel ? '#C19131' : 'rgba(217,210,190,0.15)'}`, borderLeft: '3px solid #C19131', borderRadius: 10, overflow: 'hidden', cursor: 'pointer', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>
+                              <div style={{ padding: '10px 12px', width: 68, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(193,145,49,0.06)', borderRight: '1px solid rgba(217,210,190,0.15)' }}>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: '#C19131', textAlign: 'center', lineHeight: 1.3 }}>{isAllDay ? 'All\nDay' : fmt(e.start.dateTime!)}</span>
                               </div>
                               <div style={{ padding: '10px 12px', flex: 1, minWidth: 0 }}>
-                                <p style={{ margin: '0 0 3px', fontSize: 14, fontWeight: 500, color: '#e8eaf0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.subject}</p>
+                                <p style={{ margin: '0 0 3px', fontSize: 14, fontWeight: 500, color: '#FFFFFF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.subject}</p>
                                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                                  {e.location?.displayName && <span style={{ fontSize: 11, color: '#6b7280' }}>@ {e.location.displayName}</span>}
-                                  {e.organizer?.emailAddress?.name && <span style={{ fontSize: 11, color: '#6b7280' }}>{e.organizer.emailAddress.name}</span>}
+                                  {e.location?.displayName && <span style={{ fontSize: 11, color: '#D9D2BE' }}>@ {e.location.displayName}</span>}
+                                  {e.organizer?.emailAddress?.name && <span style={{ fontSize: 11, color: '#D9D2BE' }}>{e.organizer.emailAddress.name}</span>}
                                 </div>
                               </div>
                               <div style={{ padding: '0 10px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#3d4258" strokeWidth="2.5" strokeLinecap="round"><path d="M9 18l6-6-6-6"/></svg>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(217,210,190,0.4)" strokeWidth="2.5" strokeLinecap="round"><path d="M9 18l6-6-6-6"/></svg>
                               </div>
                             </div>
                           )
@@ -1534,17 +1691,17 @@ function CalendarTab({ events, tasks }: { events: CalendarEvent[]; tasks: Eisenh
                           const sel   = selected?.type === 'task' && selected.data.id === t.id
                           return (
                             <div key={t.id} onClick={() => setSelected(sel ? null : { type: 'task', data: t })}
-                              style={{ display: 'flex', background: sel ? '#22263a' : '#1a1d27', border: `1px solid ${sel ? qCfg.color : '#2a2f45'}`, borderLeft: `3px solid ${qCfg.color}`, borderRadius: 10, overflow: 'hidden', cursor: 'pointer', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>
-                              <div style={{ padding: '10px 12px', width: 68, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: qCfg.bg, borderRight: '1px solid #2a2f45' }}>
+                              style={{ display: 'flex', background: sel ? '#3f5262' : '#374857', border: `1px solid ${sel ? qCfg.color : 'rgba(217,210,190,0.15)'}`, borderLeft: `3px solid ${qCfg.color}`, borderRadius: 10, overflow: 'hidden', cursor: 'pointer', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>
+                              <div style={{ padding: '10px 12px', width: 68, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: qCfg.bg, borderRight: '1px solid rgba(217,210,190,0.15)' }}>
                                 <span style={{ fontSize: 13, fontWeight: 800, color: qCfg.color }}>{qLabel}</span>
                                 <span style={{ fontSize: 9, color: qCfg.color, opacity: 0.7, textTransform: 'uppercase', letterSpacing: '0.3px' }}>task</span>
                               </div>
                               <div style={{ padding: '10px 12px', flex: 1, minWidth: 0 }}>
-                                <p style={{ margin: '0 0 3px', fontSize: 14, fontWeight: 500, color: '#e8eaf0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</p>
-                                {t.client_name && <span style={{ fontSize: 11, color: '#3AAFA9' }}>{t.client_name}</span>}
+                                <p style={{ margin: '0 0 3px', fontSize: 14, fontWeight: 500, color: '#FFFFFF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</p>
+                                {t.client_name && <span style={{ fontSize: 11, color: '#C19131' }}>{t.client_name}</span>}
                               </div>
                               <div style={{ padding: '0 10px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#3d4258" strokeWidth="2.5" strokeLinecap="round"><path d="M9 18l6-6-6-6"/></svg>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(217,210,190,0.4)" strokeWidth="2.5" strokeLinecap="round"><path d="M9 18l6-6-6-6"/></svg>
                               </div>
                             </div>
                           )
@@ -1564,19 +1721,19 @@ function CalendarTab({ events, tasks }: { events: CalendarEvent[]; tasks: Eisenh
                 const dayEvts = events.filter(e => (e.start?.dateTime || e.start?.date) && localDateKey(evtStart(e)) === dayKey).sort((a, b) => evtStart(a).getTime() - evtStart(b).getTime())
                 const dayTasks = tasks.filter(t => t.due_date === dayKey)
                 return (
-                  <div key={dayKey} style={{ background: isToday ? 'rgba(58,175,169,0.06)' : '#1a1d27', border: `1px solid ${isToday ? 'rgba(58,175,169,0.3)' : '#2a2f45'}`, borderRadius: 10, padding: '10px 8px', minHeight: 140 }}>
+                  <div key={dayKey} style={{ background: isToday ? 'rgba(193,145,49,0.06)' : '#374857', border: `1px solid ${isToday ? 'rgba(193,145,49,0.3)' : 'rgba(217,210,190,0.15)'}`, borderRadius: 10, padding: '10px 8px', minHeight: 140 }}>
                     <div style={{ textAlign: 'center', marginBottom: 10 }}>
-                      <div style={{ fontSize: 10, fontWeight: 600, color: isToday ? '#3AAFA9' : '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{day.toLocaleDateString('en-AU', { weekday: 'short' })}</div>
-                      <div style={{ fontSize: 18, fontWeight: 700, color: isToday ? '#3AAFA9' : '#e8eaf0', lineHeight: 1.3 }}>{day.getDate()}</div>
+                      <div style={{ fontSize: 10, fontWeight: 600, color: isToday ? '#C19131' : '#D9D2BE', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{day.toLocaleDateString('en-AU', { weekday: 'short' })}</div>
+                      <div style={{ fontSize: 18, fontWeight: 700, color: isToday ? '#C19131' : '#FFFFFF', lineHeight: 1.3 }}>{day.getDate()}</div>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                       {dayEvts.length === 0 && dayTasks.length === 0
-                        ? <p style={{ color: '#2a2f45', fontSize: 11, margin: 0, textAlign: 'center' }}>—</p>
+                        ? <p style={{ color: 'rgba(217,210,190,0.15)', fontSize: 11, margin: 0, textAlign: 'center' }}>—</p>
                         : <>
                             {dayEvts.map(e => (
-                              <div key={e.id} onClick={() => setSelected({ type: 'event', data: e })} style={{ background: 'rgba(58,175,169,0.1)', borderLeft: '2px solid #3AAFA9', borderRadius: 4, padding: '3px 6px', cursor: 'pointer', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>
-                                <div style={{ fontSize: 10, color: '#3AAFA9', fontWeight: 600 }}>{(e.isAllDay || !e.start?.dateTime) ? 'All day' : fmt(e.start.dateTime!)}</div>
-                                <div style={{ fontSize: 11, color: '#c0c8d8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.subject}</div>
+                              <div key={e.id} onClick={() => setSelected({ type: 'event', data: e })} style={{ background: 'rgba(193,145,49,0.1)', borderLeft: '2px solid #C19131', borderRadius: 4, padding: '3px 6px', cursor: 'pointer', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>
+                                <div style={{ fontSize: 10, color: '#C19131', fontWeight: 600 }}>{(e.isAllDay || !e.start?.dateTime) ? 'All day' : fmt(e.start.dateTime!)}</div>
+                                <div style={{ fontSize: 11, color: '#FFFFFF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.subject}</div>
                               </div>
                             ))}
                             {dayTasks.map(t => {
@@ -1585,7 +1742,7 @@ function CalendarTab({ events, tasks }: { events: CalendarEvent[]; tasks: Eisenh
                               return (
                                 <div key={t.id} onClick={() => setSelected({ type: 'task', data: t })} style={{ background: qCfg.bg, borderLeft: `2px solid ${qCfg.color}`, borderRadius: 4, padding: '3px 6px', cursor: 'pointer', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>
                                   <div style={{ fontSize: 10, color: qCfg.color, fontWeight: 700 }}>{qL}</div>
-                                  <div style={{ fontSize: 11, color: '#c0c8d8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</div>
+                                  <div style={{ fontSize: 11, color: '#FFFFFF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</div>
                                 </div>
                               )
                             })}
@@ -1603,7 +1760,7 @@ function CalendarTab({ events, tasks }: { events: CalendarEvent[]; tasks: Eisenh
         {selected && !isMobile && (
           <Card style={{ position: 'sticky', top: 72, alignSelf: 'start', maxHeight: 'calc(100vh - 96px)', overflow: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
-              <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: 20 }}>&#x2715;</button>
+              <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: '#D9D2BE', cursor: 'pointer', fontSize: 20 }}>&#x2715;</button>
             </div>
             {detailContent}
           </Card>
@@ -1613,15 +1770,15 @@ function CalendarTab({ events, tasks }: { events: CalendarEvent[]; tasks: Eisenh
       {/* ── Mobile: full-screen detail slide-in ── */}
       <div style={{
         position: 'fixed', inset: 0, zIndex: 300,
-        background: '#0f1117',
+        background: '#2E3D49',
         transform: (selected && isMobile) ? 'translateX(0)' : 'translateX(100%)',
         transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1)',
         display: 'flex', flexDirection: 'column',
         overflow: 'hidden', touchAction: 'pan-y',
         pointerEvents: (selected && isMobile) ? 'auto' : 'none',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', height: 56, padding: '0 16px', background: '#1a1d27', borderBottom: '1px solid #2a2f45', flexShrink: 0 }}>
-          <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: '#3AAFA9', fontSize: 17, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", display: 'flex', alignItems: 'center', gap: 4, padding: '8px 0', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>
+        <div style={{ display: 'flex', alignItems: 'center', height: 56, padding: '0 16px', background: '#374857', borderBottom: '1px solid rgba(217,210,190,0.15)', flexShrink: 0 }}>
+          <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: '#C19131', fontSize: 17, cursor: 'pointer', fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif", display: 'flex', alignItems: 'center', gap: 4, padding: '8px 0', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>
             ‹ Calendar
           </button>
         </div>
@@ -1653,61 +1810,61 @@ function ClientsTab({ emails, tasks }: { emails: Email[]; tasks: EisenhowerTask[
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#e8eaf0' }}>Client Pipeline</h3>
-        <span style={{ fontSize: 12, color: '#6b7280' }}>{clientList.length} VIP clients tracked</span>
+        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#FFFFFF' }}>Client Pipeline</h3>
+        <span style={{ fontSize: 12, color: '#D9D2BE' }}>{clientList.length} VIP clients tracked</span>
       </div>
       <div className="r-grid-2" style={{ gap: 12 }}>
         {clientList.map(c => (
           <Card key={c.name}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
               <div>
-                <h4 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 600, color: '#e8eaf0' }}>{c.name}</h4>
+                <h4 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 600, color: '#FFFFFF' }}>{c.name}</h4>
                 {c.lastEmail
-                  ? <p style={{ margin: 0, fontSize: 11, color: '#6b7280' }}>Last contact: {timeAgo(c.lastEmail.receivedDateTime)}</p>
-                  : <p style={{ margin: 0, fontSize: 11, color: '#3d4258' }}>No recent email</p>}
+                  ? <p style={{ margin: 0, fontSize: 11, color: '#D9D2BE' }}>Last contact: {timeAgo(c.lastEmail.receivedDateTime)}</p>
+                  : <p style={{ margin: 0, fontSize: 11, color: 'rgba(217,210,190,0.4)' }}>No recent email</p>}
               </div>
               {c.urgentCount > 0 && (
-                <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 4, background: 'rgba(239,68,68,0.12)', color: '#ef4444', flexShrink: 0 }}>{c.urgentCount} urgent</span>
+                <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 4, background: 'rgba(192,57,43,0.12)', color: '#C0392B', flexShrink: 0 }}>{c.urgentCount} urgent</span>
               )}
             </div>
 
             <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
               {[
-                { val: c.emails.length, label: 'emails',  color: '#3AAFA9' },
-                { val: c.tasks.length,  label: 'tasks',   color: '#C9A96E' },
-                { val: c.unreadCount,   label: 'unread',  color: c.unreadCount > 0 ? '#ef4444' : '#6b7280' },
+                { val: c.emails.length, label: 'emails',  color: '#C19131' },
+                { val: c.tasks.length,  label: 'tasks',   color: '#C19131' },
+                { val: c.unreadCount,   label: 'unread',  color: c.unreadCount > 0 ? '#C0392B' : '#D9D2BE' },
               ].map(({ val, label, color }) => (
-                <div key={label} style={{ flex: 1, background: '#0f1117', borderRadius: 8, padding: '8px 6px', textAlign: 'center' }}>
+                <div key={label} style={{ flex: 1, background: '#2E3D49', borderRadius: 8, padding: '8px 6px', textAlign: 'center' }}>
                   <div style={{ fontSize: 20, fontWeight: 700, color }}>{val}</div>
-                  <div style={{ fontSize: 11, color: '#6b7280' }}>{label}</div>
+                  <div style={{ fontSize: 11, color: '#D9D2BE' }}>{label}</div>
                 </div>
               ))}
             </div>
 
             {c.tasks.length > 0 && (
               <div style={{ marginBottom: 10 }}>
-                <p style={{ margin: '0 0 6px', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Active tasks</p>
+                <p style={{ margin: '0 0 6px', fontSize: 11, fontWeight: 600, color: '#D9D2BE', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Active tasks</p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {c.tasks.slice(0, 3).map(t => (
-                    <div key={t.id} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '4px 8px', background: '#0f1117', borderRadius: 6 }}>
+                    <div key={t.id} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '4px 8px', background: '#2E3D49', borderRadius: 6 }}>
                       <span style={{ width: 6, height: 6, borderRadius: '50%', background: quadrantConfig[t.quadrant].color, flexShrink: 0 }} />
-                      <span style={{ fontSize: 12, color: '#b0b8cc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</span>
+                      <span style={{ fontSize: 12, color: '#D9D2BE', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</span>
                     </div>
                   ))}
-                  {c.tasks.length > 3 && <p style={{ margin: 0, fontSize: 11, color: '#3d4258' }}>+{c.tasks.length - 3} more</p>}
+                  {c.tasks.length > 3 && <p style={{ margin: 0, fontSize: 11, color: 'rgba(217,210,190,0.4)' }}>+{c.tasks.length - 3} more</p>}
                 </div>
               </div>
             )}
 
             {c.lastEmail && (
-              <div style={{ padding: '8px 10px', background: '#0f1117', borderRadius: 8 }}>
-                <p style={{ margin: '0 0 2px', fontSize: 11, color: '#6b7280' }}>{c.lastEmail.from?.name || c.lastEmail.from?.address || 'Unknown sender'}</p>
-                <p style={{ margin: 0, fontSize: 12, color: '#8892a4', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.lastEmail.subject}</p>
+              <div style={{ padding: '8px 10px', background: '#2E3D49', borderRadius: 8 }}>
+                <p style={{ margin: '0 0 2px', fontSize: 11, color: '#D9D2BE' }}>{c.lastEmail.from?.name || c.lastEmail.from?.address || 'Unknown sender'}</p>
+                <p style={{ margin: 0, fontSize: 12, color: '#D9D2BE', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.lastEmail.subject}</p>
               </div>
             )}
 
             {!c.lastEmail && c.tasks.length === 0 && (
-              <p style={{ margin: 0, fontSize: 12, color: '#3d4258' }}>No recent activity</p>
+              <p style={{ margin: 0, fontSize: 12, color: 'rgba(217,210,190,0.4)' }}>No recent activity</p>
             )}
           </Card>
         ))}
@@ -1723,7 +1880,7 @@ function renderMarkdown(text: string): string {
     escape(s)
       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.+?)\*/g, '<em>$1</em>')
-      .replace(/`(.+?)`/g, '<code style="background:#2a2f45;padding:1px 5px;border-radius:3px;font-size:12px">$1</code>')
+      .replace(/`(.+?)`/g, '<code style="background:rgba(217,210,190,0.15);padding:1px 5px;border-radius:3px;font-size:12px">$1</code>')
 
   const lines = text.split('\n')
   const out: string[] = []
@@ -1741,9 +1898,9 @@ function renderMarkdown(text: string): string {
         if (ti === 1) return // separator row
         const cells = tl.split('|').slice(1, -1)
         const tag = ti === 0 ? 'th' : 'td'
-        const bg = ti === 0 ? '#22263a' : ti % 2 === 0 ? '#1e2235' : 'transparent'
+        const bg = ti === 0 ? '#3f5262' : ti % 2 === 0 ? 'rgba(217,210,190,0.1)' : 'transparent'
         out.push(`<tr style="background:${bg}">`)
-        cells.forEach(c => out.push(`<${tag} style="padding:5px 10px;border:1px solid #2a2f45;text-align:left">${inline(c.trim())}</${tag}>`))
+        cells.forEach(c => out.push(`<${tag} style="padding:5px 10px;border:1px solid rgba(217,210,190,0.15);text-align:left">${inline(c.trim())}</${tag}>`))
         out.push('</tr>')
       })
       out.push('</table>')
@@ -1751,9 +1908,9 @@ function renderMarkdown(text: string): string {
     }
 
     // Headings
-    if (line.startsWith('### ')) { out.push(`<h3 style="margin:10px 0 4px;font-size:13px;font-weight:600;color:#3AAFA9">${inline(line.slice(4))}</h3>`); i++; continue }
-    if (line.startsWith('## '))  { out.push(`<h2 style="margin:12px 0 5px;font-size:14px;font-weight:600;color:#3AAFA9">${inline(line.slice(3))}</h2>`); i++; continue }
-    if (line.startsWith('# '))   { out.push(`<h1 style="margin:14px 0 6px;font-size:15px;font-weight:700;color:#3AAFA9">${inline(line.slice(2))}</h1>`); i++; continue }
+    if (line.startsWith('### ')) { out.push(`<h3 style="margin:10px 0 4px;font-size:13px;font-weight:600;color:#C19131">${inline(line.slice(4))}</h3>`); i++; continue }
+    if (line.startsWith('## '))  { out.push(`<h2 style="margin:12px 0 5px;font-size:14px;font-weight:600;color:#C19131">${inline(line.slice(3))}</h2>`); i++; continue }
+    if (line.startsWith('# '))   { out.push(`<h1 style="margin:14px 0 6px;font-size:15px;font-weight:700;color:#C19131">${inline(line.slice(2))}</h1>`); i++; continue }
 
     // Bullet list
     if (/^[-*] /.test(line)) {
@@ -1831,7 +1988,7 @@ function ChatTab() {
       {messages.length <= 1 && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
           {quickActions.map(qa => (
-            <button key={qa.label} onClick={() => send(qa.msg)} style={{ padding: '7px 14px', background: '#1a1d27', color: '#8892a4', border: '1px solid #2a2f45', borderRadius: 20, fontSize: 12, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+            <button key={qa.label} onClick={() => send(qa.msg)} style={{ padding: '7px 14px', background: '#374857', color: '#D9D2BE', border: '1px solid rgba(217,210,190,0.15)', borderRadius: 20, fontSize: 12, cursor: 'pointer', fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif" }}>
               {qa.label}
             </button>
           ))}
@@ -1841,27 +1998,27 @@ function ChatTab() {
         {messages.map((m, i) => (
           <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
             {m.role === 'user' ? (
-              <div style={{ maxWidth: '75%', padding: '10px 14px', borderRadius: '12px 12px 4px 12px', background: 'linear-gradient(135deg, #3AAFA9, #2E9E98)', color: '#e8eaf0', fontSize: 14, lineHeight: 1.6 }}>
+              <div style={{ maxWidth: '75%', padding: '10px 14px', borderRadius: '12px 12px 4px 12px', background: '#C19131', color: '#FFFFFF', fontSize: 14, lineHeight: 1.6 }}>
                 {m.content}
               </div>
             ) : (
               <div
                 dangerouslySetInnerHTML={{ __html: renderMarkdown(m.content) }}
-                style={{ maxWidth: '85%', padding: '10px 14px', borderRadius: '12px 12px 12px 4px', background: '#1a1d27', border: '1px solid #2a2f45', color: '#e8eaf0', fontSize: 14, lineHeight: 1.6 }}
+                style={{ maxWidth: '85%', padding: '10px 14px', borderRadius: '12px 12px 12px 4px', background: '#374857', border: '1px solid rgba(217,210,190,0.15)', color: '#FFFFFF', fontSize: 14, lineHeight: 1.6 }}
               />
             )}
           </div>
         ))}
         {loading && (
           <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-            <div style={{ padding: '10px 14px', background: '#1a1d27', border: '1px solid #2a2f45', borderRadius: '12px 12px 12px 4px', color: '#6b7280', fontSize: 14 }}>Thinking...</div>
+            <div style={{ padding: '10px 14px', background: '#374857', border: '1px solid rgba(217,210,190,0.15)', borderRadius: '12px 12px 12px 4px', color: '#D9D2BE', fontSize: 14 }}>Thinking...</div>
           </div>
         )}
         <div ref={bottomRef} />
       </div>
       <div style={{ display: 'flex', gap: 10 }}>
-        <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()} placeholder="Ask me anything about your day..." style={{ flex: 1, padding: '12px 16px', background: '#1a1d27', border: '1px solid #2a2f45', borderRadius: 10, color: '#e8eaf0', fontSize: 14, outline: 'none', fontFamily: "'DM Sans', sans-serif" }} />
-        <button onClick={() => send()} disabled={loading || !input.trim()} style={{ padding: '12px 20px', background: loading || !input.trim() ? '#22263a' : 'linear-gradient(135deg, #3AAFA9, #2E9E98)', color: loading || !input.trim() ? '#3d4258' : '#fff', border: 'none', borderRadius: 10, cursor: loading || !input.trim() ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 500, fontFamily: "'DM Sans', sans-serif" }}>Send</button>
+        <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()} placeholder="Ask me anything about your day..." style={{ flex: 1, padding: '12px 16px', background: '#374857', border: '1px solid rgba(217,210,190,0.15)', borderRadius: 10, color: '#FFFFFF', fontSize: 14, outline: 'none', fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif" }} />
+        <button onClick={() => send()} disabled={loading || !input.trim()} style={{ padding: '12px 20px', background: loading || !input.trim() ? '#3f5262' : '#C19131', color: loading || !input.trim() ? 'rgba(217,210,190,0.4)' : '#fff', border: 'none', borderRadius: 10, cursor: loading || !input.trim() ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 500, fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif" }}>Send</button>
       </div>
     </div>
   )
@@ -1913,14 +2070,14 @@ function SettingsTab({ connected, onDisconnect }: { connected: boolean; onDiscon
     { label: 'Microsoft system mail',  pattern: '*@microsoft.com' },
   ]
 
-  const labelStyle: React.CSSProperties = { fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 6 }
+  const labelStyle: React.CSSProperties = { fontSize: 12, color: '#D9D2BE', display: 'block', marginBottom: 6 }
 
   return (
     <div style={{ maxWidth: 600, display: 'flex', flexDirection: 'column', gap: 16 }}>
 
       {/* Briefing Preferences */}
       <Card>
-        <h3 style={{ margin: '0 0 16px', fontSize: 13, fontWeight: 600, color: '#3AAFA9', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Briefing Preferences</h3>
+        <h3 style={{ margin: '0 0 16px', fontSize: 13, fontWeight: 600, color: '#C19131', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Briefing Preferences</h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
             <label style={labelStyle}>Daily Briefing Time</label>
@@ -1930,7 +2087,7 @@ function SettingsTab({ connected, onDisconnect }: { connected: boolean; onDiscon
             <label style={labelStyle}>Focus Block Window</label>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <input type="time" value={focusStart} onChange={e => setFocusStart(e.target.value)} style={{ ...inputStyle, maxWidth: 140 }} />
-              <span style={{ color: '#6b7280', fontSize: 13 }}>to</span>
+              <span style={{ color: '#D9D2BE', fontSize: 13 }}>to</span>
               <input type="time" value={focusEnd}   onChange={e => setFocusEnd(e.target.value)}   style={{ ...inputStyle, maxWidth: 140 }} />
             </div>
           </div>
@@ -1939,13 +2096,13 @@ function SettingsTab({ connected, onDisconnect }: { connected: boolean; onDiscon
 
       {/* VIP Clients */}
       <Card>
-        <h3 style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 600, color: '#C9A96E', textTransform: 'uppercase', letterSpacing: '0.8px' }}>VIP Clients</h3>
-        <p style={{ margin: '0 0 12px', fontSize: 12, color: '#6b7280' }}>Treated as VIP in Email and Clients tabs. Changes apply on next page load.</p>
+        <h3 style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 600, color: '#C19131', textTransform: 'uppercase', letterSpacing: '0.8px' }}>VIP Clients</h3>
+        <p style={{ margin: '0 0 12px', fontSize: 12, color: '#D9D2BE' }}>Treated as VIP in Email and Clients tabs. Changes apply on next page load.</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
           {vipContacts.map(name => (
-            <div key={name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 10px', background: '#0f1117', border: '1px solid #2a2f45', borderRadius: 7 }}>
-              <span style={{ fontSize: 13, color: '#e8eaf0' }}>{name}</span>
-              <button onClick={() => setVipContacts(p => p.filter(c => c !== name))} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '0 2px' }}>&#x2715;</button>
+            <div key={name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 10px', background: '#2E3D49', border: '1px solid rgba(217,210,190,0.15)', borderRadius: 7 }}>
+              <span style={{ fontSize: 13, color: '#FFFFFF' }}>{name}</span>
+              <button onClick={() => setVipContacts(p => p.filter(c => c !== name))} style={{ background: 'none', border: 'none', color: '#D9D2BE', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '0 2px' }}>&#x2715;</button>
             </div>
           ))}
         </div>
@@ -1957,13 +2114,13 @@ function SettingsTab({ connected, onDisconnect }: { connected: boolean; onDiscon
 
       {/* Auto-archive Rules */}
       <Card>
-        <h3 style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 600, color: '#3AAFA9', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Auto-archive Rules</h3>
-        <p style={{ margin: '0 0 12px', fontSize: 12, color: '#6b7280' }}>Emails matching these patterns are routed to the Tools filter automatically.</p>
+        <h3 style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 600, color: '#C19131', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Auto-archive Rules</h3>
+        <p style={{ margin: '0 0 12px', fontSize: 12, color: '#D9D2BE' }}>Emails matching these patterns are routed to the Tools filter automatically.</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {archiveRules.map(r => (
-            <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: '#0f1117', border: '1px solid #2a2f45', borderRadius: 7 }}>
-              <span style={{ fontSize: 13, color: '#e8eaf0' }}>{r.label}</span>
-              <span style={{ fontSize: 11, color: '#3d4258', fontFamily: 'monospace' }}>{r.pattern}</span>
+            <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: '#2E3D49', border: '1px solid rgba(217,210,190,0.15)', borderRadius: 7 }}>
+              <span style={{ fontSize: 13, color: '#FFFFFF' }}>{r.label}</span>
+              <span style={{ fontSize: 11, color: 'rgba(217,210,190,0.4)', fontFamily: 'monospace' }}>{r.pattern}</span>
             </div>
           ))}
         </div>
@@ -1978,20 +2135,20 @@ function SettingsTab({ connected, onDisconnect }: { connected: boolean; onDiscon
 
       {/* Microsoft Connection */}
       <Card>
-        <h3 style={{ margin: '0 0 14px', fontSize: 13, fontWeight: 600, color: '#3AAFA9', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Microsoft Connection</h3>
+        <h3 style={{ margin: '0 0 14px', fontSize: 13, fontWeight: 600, color: '#C19131', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Microsoft Connection</h3>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <p style={{ margin: '0 0 4px', fontSize: 14, color: '#e8eaf0' }}>{connected ? 'Connected to Microsoft 365' : 'Not connected'}</p>
-            <p style={{ margin: 0, fontSize: 12, color: '#6b7280' }}>{connected ? 'Your email and calendar are syncing.' : 'Connect to access email and calendar data.'}</p>
+            <p style={{ margin: '0 0 4px', fontSize: 14, color: '#FFFFFF' }}>{connected ? 'Connected to Microsoft 365' : 'Not connected'}</p>
+            <p style={{ margin: 0, fontSize: 12, color: '#D9D2BE' }}>{connected ? 'Your email and calendar are syncing.' : 'Connect to access email and calendar data.'}</p>
           </div>
-          {connected && <button onClick={disconnect} style={{ padding: '8px 14px', background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontFamily: "'DM Sans', sans-serif" }}>Disconnect</button>}
+          {connected && <button onClick={disconnect} style={{ padding: '8px 14px', background: 'rgba(192,57,43,0.1)', color: '#C0392B', border: '1px solid rgba(192,57,43,0.2)', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif" }}>Disconnect</button>}
         </div>
       </Card>
 
       {/* About */}
       <Card>
-        <h3 style={{ margin: '0 0 14px', fontSize: 13, fontWeight: 600, color: '#3AAFA9', textTransform: 'uppercase', letterSpacing: '0.8px' }}>About</h3>
-        <p style={{ margin: 0, fontSize: 13, color: '#6b7280', lineHeight: 1.6 }}>
+        <h3 style={{ margin: '0 0 14px', fontSize: 13, fontWeight: 600, color: '#C19131', textTransform: 'uppercase', letterSpacing: '0.8px' }}>About</h3>
+        <p style={{ margin: 0, fontSize: 13, color: '#D9D2BE', lineHeight: 1.6 }}>
           Qurate Admin Agent v1.0<br />
           Stack: Next.js, Supabase, Microsoft Graph, Claude API (Haiku + Sonnet)
         </p>
@@ -2100,21 +2257,21 @@ export default function Dashboard() {
   ]
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0f1117', fontFamily: "'DM Sans', sans-serif" }}>
+    <div style={{ minHeight: '100vh', background: NAVY, fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif", fontWeight: 300 }}>
 
       {/* Static top header — logo left, tab title centre, logout right */}
       <div className="dash-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 30, height: 30, background: 'linear-gradient(135deg, #3AAFA9, #C9A96E)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, color: '#fff', flexShrink: 0 }}>Q</div>
-          <span style={{ fontSize: 15, fontWeight: 700, color: '#3AAFA9', letterSpacing: '-0.3px' }}>Qurate</span>
+          <div style={{ width: 30, height: 30, background: GOLD, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, color: NAVY, flexShrink: 0, fontFamily: "'Gujarati Sangam MN', 'DM Sans', serif" }}>Q</div>
+          <span style={{ fontSize: 15, fontWeight: 700, color: WHITE, letterSpacing: '-0.3px', fontFamily: "'Gujarati Sangam MN', 'DM Sans', serif" }}>Qurate</span>
         </div>
-        <span style={{ fontSize: 16, fontWeight: 600, color: '#e8eaf0' }}>{TAB_TITLES[tab]}</span>
+        <span style={{ fontSize: 15, fontWeight: 400, color: BEIGE, fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif" }}>{TAB_TITLES[tab]}</span>
         <button
           onClick={() => { window.location.href = '/api/auth/logout' }}
           title="Sign out"
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: 'transparent', color: '#6b7280', border: '1px solid #2a2f45', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", transition: 'all 0.15s' }}
-          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#ef4444'; (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(239,68,68,0.4)' }}
-          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#6b7280'; (e.currentTarget as HTMLButtonElement).style.borderColor = '#2a2f45' }}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: 'transparent', color: BEIGE, border: `1px solid ${NAVY_BORDER}`, borderRadius: 8, fontSize: 12, cursor: 'pointer', fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif", transition: 'all 0.15s' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = RED; (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(192,57,43,0.4)' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = BEIGE; (e.currentTarget as HTMLButtonElement).style.borderColor = NAVY_BORDER }}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
@@ -2150,9 +2307,6 @@ export default function Dashboard() {
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
         * { box-sizing: border-box; }
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #2a2f45; border-radius: 3px; }
       `}</style>
     </div>
   )
