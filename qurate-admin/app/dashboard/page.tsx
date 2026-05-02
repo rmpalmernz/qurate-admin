@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { SUPABASE_FUNCTIONS_URL } from '@/lib/supabase'
+import { useUserSettings, DEFAULT_SETTINGS } from './_hooks/useUserSettings'
 
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -79,8 +80,11 @@ async function getMsToken(): Promise<string | null> {
   }
 }
 
-const VIP_CLIENTS = ['Think Water', 'Therefore', 'Providence', 'Armillary', 'Alstonville']
-const VIP_DOMAINS  = ['thinkwater', 'therefore', 'providence', 'armillary', 'alstonville']
+// Lowercase + strip non-alphanumerics → matches against email domain substrings.
+// "Think Water" → "thinkwater"
+function vipDomainMatcher(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]/g, '')
+}
 
 function emailToQuadrant(email: Email): 'do' | 'schedule' | 'delegate' | 'eliminate' {
   if (email.ai_quadrant) return email.ai_quadrant
@@ -93,10 +97,12 @@ function emailToQuadrant(email: Email): 'do' | 'schedule' | 'delegate' | 'elimin
   return 'schedule'
 }
 
-function emailCategory(email: Email): 'vip' | 'partner' | 'tools' | 'other' {
+function emailCategory(email: Email, vipCompanies: string[]): 'vip' | 'partner' | 'tools' | 'other' {
   const addr = (email.from?.address || '').toLowerCase()
   const cn   = email.ai_client_name || ''
-  if (VIP_CLIENTS.some(c => cn.toLowerCase().includes(c.toLowerCase())) || VIP_DOMAINS.some(d => addr.includes(d))) return 'vip'
+  const vipNameHit   = vipCompanies.some(c => cn.toLowerCase().includes(c.toLowerCase()))
+  const vipDomainHit = vipCompanies.some(c => addr.includes(vipDomainMatcher(c)))
+  if (vipNameHit || vipDomainHit) return 'vip'
   if (addr.includes('noreply') || addr.includes('no-reply') || addr.includes('notifications') ||
       addr.includes('sharepoint') || addr.includes('teams') || addr.includes('n8n') || addr.includes('microsoft')) return 'tools'
   return 'other'
@@ -197,7 +203,7 @@ function SectionHeading({ children, color = GOLD }: { children: React.ReactNode;
 }
 
 // ─── BRIEFING TAB ─────────────────────────────────────────────────────────────
-function BriefingTab({ events, tasks, emails }: { events: CalendarEvent[]; tasks: EisenhowerTask[]; emails: Email[] }) {
+function BriefingTab({ events, tasks, emails, vipCompanies }: { events: CalendarEvent[]; tasks: EisenhowerTask[]; emails: Email[]; vipCompanies: string[] }) {
   const [brief, setBrief] = useState('')
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
@@ -222,7 +228,7 @@ function BriefingTab({ events, tasks, emails }: { events: CalendarEvent[]; tasks
       const q1Tasks = tasks.filter(t => t.quadrant === 'do' && t.status !== 'done' && t.status !== 'cancelled')
       const q2Tasks = tasks.filter(t => t.quadrant === 'schedule' && t.status !== 'done' && t.status !== 'cancelled')
       const urgentEmails = emails.filter(e => emailToQuadrant(e) === 'do' && !e.isRead)
-      const vipEmails = emails.filter(e => emailCategory(e) === 'vip' && !e.isRead)
+      const vipEmails = emails.filter(e => emailCategory(e, vipCompanies) === 'vip' && !e.isRead)
 
       const calendarSection = todayEvts.length > 0
         ? todayEvts.map(e => {
@@ -666,7 +672,7 @@ function SwipeableEmailRow({ email, selected, onSelect, onArchive }: {
 }
 
 // ─── EMAIL TAB ────────────────────────────────────────────────────────────────
-function EmailTab({ emails, loading, onRefresh }: { emails: Email[]; loading: boolean; onRefresh: () => void }) {
+function EmailTab({ emails, loading, onRefresh, vipCompanies }: { emails: Email[]; loading: boolean; onRefresh: () => void; vipCompanies: string[] }) {
   const [selected, setSelected]       = useState<Email | null>(null)
   const [drafting, setDrafting]       = useState(false)
   const [draft, setDraft]             = useState('')
@@ -745,18 +751,18 @@ function EmailTab({ emails, loading, onRefresh }: { emails: Email[]; loading: bo
     if (archived.has(e.id)) return false
     if (filter === 'all')   return true
     if (filter === 'q1')    return emailToQuadrant(e) === 'do'
-    if (filter === 'vip')   return emailCategory(e) === 'vip'
-    if (filter === 'tools') return emailCategory(e) === 'tools'
-    if (filter === 'other') return emailCategory(e) === 'other'
+    if (filter === 'vip')   return emailCategory(e, vipCompanies) === 'vip'
+    if (filter === 'tools') return emailCategory(e, vipCompanies) === 'tools'
+    if (filter === 'other') return emailCategory(e, vipCompanies) === 'other'
     return true
   })
 
   const counts = {
     all:   emails.filter(e => !archived.has(e.id)).length,
     q1:    emails.filter(e => !archived.has(e.id) && emailToQuadrant(e) === 'do').length,
-    vip:   emails.filter(e => !archived.has(e.id) && emailCategory(e) === 'vip').length,
-    tools: emails.filter(e => !archived.has(e.id) && emailCategory(e) === 'tools').length,
-    other: emails.filter(e => !archived.has(e.id) && emailCategory(e) === 'other').length,
+    vip:   emails.filter(e => !archived.has(e.id) && emailCategory(e, vipCompanies) === 'vip').length,
+    tools: emails.filter(e => !archived.has(e.id) && emailCategory(e, vipCompanies) === 'tools').length,
+    other: emails.filter(e => !archived.has(e.id) && emailCategory(e, vipCompanies) === 'other').length,
   }
 
   const pc = (p?: string) => p === 'high' ? '#C0392B' : p === 'medium' ? '#C19131' : '#D9D2BE'
@@ -1791,9 +1797,9 @@ function CalendarTab({ events, tasks }: { events: CalendarEvent[]; tasks: Eisenh
 }
 
 // ─── CLIENTS TAB ──────────────────────────────────────────────────────────────
-function ClientsTab({ emails, tasks }: { emails: Email[]; tasks: EisenhowerTask[] }) {
-  const clientList = VIP_CLIENTS.map((name, i) => {
-    const domain       = VIP_DOMAINS[i]
+function ClientsTab({ emails, tasks, vipCompanies }: { emails: Email[]; tasks: EisenhowerTask[]; vipCompanies: string[] }) {
+  const clientList = vipCompanies.map(name => {
+    const domain       = vipDomainMatcher(name)
     const clientEmails = emails.filter(e => {
       const cn   = (e.ai_client_name || '').toLowerCase()
       const addr = (e.from?.address || '').toLowerCase()
@@ -2026,29 +2032,33 @@ function ChatTab() {
 
 // ─── SETTINGS TAB ─────────────────────────────────────────────────────────────
 function SettingsTab({ connected, onDisconnect }: { connected: boolean; onDisconnect: () => void }) {
-  const [briefingTime, setBriefingTime] = useState('08:00')
-  const [focusStart, setFocusStart]     = useState('09:00')
-  const [focusEnd, setFocusEnd]         = useState('12:00')
-  const [vipContacts, setVipContacts]   = useState<string[]>([...VIP_CLIENTS])
+  const { settings, save, loading } = useUserSettings()
+  const [briefingTime, setBriefingTime] = useState(DEFAULT_SETTINGS.briefingTime)
+  const [focusStart, setFocusStart]     = useState(DEFAULT_SETTINGS.focusStart)
+  const [focusEnd, setFocusEnd]         = useState(DEFAULT_SETTINGS.focusEnd)
+  const [vipContacts, setVipContacts]   = useState<string[]>([...DEFAULT_SETTINGS.vipCompanies])
   const [newContact, setNewContact]     = useState('')
   const [saved, setSaved]               = useState(false)
+  const [saving, setSaving]             = useState(false)
 
-  // Read localStorage after mount (SSR-safe)
+  // Hydrate local form state once settings have loaded from Supabase.
   useEffect(() => {
-    setBriefingTime(localStorage.getItem('pref_briefing_time') || '08:00')
-    setFocusStart(localStorage.getItem('pref_focus_start')    || '09:00')
-    setFocusEnd(localStorage.getItem('pref_focus_end')        || '12:00')
-    try {
-      const raw = localStorage.getItem('pref_vip_contacts')
-      if (raw) setVipContacts(JSON.parse(raw))
-    } catch {}
-  }, [])
+    if (loading) return
+    setBriefingTime(settings.briefingTime)
+    setFocusStart(settings.focusStart)
+    setFocusEnd(settings.focusEnd)
+    setVipContacts(settings.vipCompanies)
+  }, [loading, settings])
 
-  function savePrefs() {
-    localStorage.setItem('pref_briefing_time',  briefingTime)
-    localStorage.setItem('pref_focus_start',    focusStart)
-    localStorage.setItem('pref_focus_end',      focusEnd)
-    localStorage.setItem('pref_vip_contacts',   JSON.stringify(vipContacts))
+  async function savePrefs() {
+    setSaving(true)
+    await save({
+      briefingTime,
+      focusStart,
+      focusEnd,
+      vipCompanies: vipContacts,
+    })
+    setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -2128,8 +2138,12 @@ function SettingsTab({ connected, onDisconnect }: { connected: boolean; onDiscon
 
       {/* Save */}
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button onClick={savePrefs} style={{ ...primaryBtnStyle, minWidth: 140 }}>
-          {saved ? 'Saved &#10003;' : 'Save Preferences'}
+        <button
+          onClick={savePrefs}
+          disabled={saving || loading}
+          style={{ ...primaryBtnStyle, minWidth: 140, opacity: (saving || loading) ? 0.6 : 1 }}
+        >
+          {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save Preferences'}
         </button>
       </div>
 
@@ -2183,6 +2197,7 @@ export default function Dashboard() {
   const [tasks, setTasks]       = useState<EisenhowerTask[]>([])
   const [emailLoading, setEmailLoading] = useState(false)
   const [connected, setConnected] = useState(false)
+  const { settings } = useUserSettings()
 
   // Verify MS token on mount; redirect to login if missing
   useEffect(() => {
@@ -2284,11 +2299,11 @@ export default function Dashboard() {
 
       {/* Scrollable content */}
       <div className="main-content">
-        {tab === 'briefing'  && <BriefingTab events={events} tasks={tasks} emails={emails} />}
-        {tab === 'email'     && <EmailTab emails={emails} loading={emailLoading} onRefresh={loadEmails} />}
+        {tab === 'briefing'  && <BriefingTab events={events} tasks={tasks} emails={emails} vipCompanies={settings.vipCompanies} />}
+        {tab === 'email'     && <EmailTab emails={emails} loading={emailLoading} onRefresh={loadEmails} vipCompanies={settings.vipCompanies} />}
         {tab === 'calendar'  && <CalendarTab events={events} tasks={tasks} />}
         {tab === 'matrix'    && <MatrixTab tasks={tasks} onRefresh={loadTasks} />}
-        {tab === 'clients'   && <ClientsTab emails={emails} tasks={tasks} />}
+        {tab === 'clients'   && <ClientsTab emails={emails} tasks={tasks} vipCompanies={settings.vipCompanies} />}
         {tab === 'chat'      && <ChatTab />}
         {tab === 'settings'  && <SettingsTab connected={connected} onDisconnect={() => { setConnected(false); window.location.href = '/api/auth/logout' }} />}
       </div>
