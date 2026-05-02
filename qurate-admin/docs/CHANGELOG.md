@@ -4,6 +4,22 @@ Records non-code changes made directly to the live Supabase project (`btzlkiwmde
 
 ---
 
+## 2026-05-02 — VIP auto-sync from SharePoint
+
+**What:** New Edge Function `sync-vips` plus pg_cron `sync-vips-daily` (`0 19 * * *`, 06:00 AEDT). Pulls company names from:
+- SharePoint site `quratepty.sharepoint.com/sites/QurateClient` → `02.  Work in Progress` + `01.  Archive` (folders matching `Qurate Clients - <NAME>`)
+- Personal OneDrive `1. Own - Engagements` (folders matching `<N>.  <NAME>`, with abbreviation map for `LoP` → "Land of Plenty" and `Thinkwater` → "Think Water")
+
+Result is upserted into `user_preferences.vip_companies_auto`. The dashboard's `useUserSettings` hook merges this with the user-editable `vip_companies` (case-insensitive) and exposes a single `vipCompaniesMerged` for VIP detection across Email, Clients, and Briefing tabs.
+
+**`ms-auth` redeployed** with new OAuth scopes: added `Sites.Read.All` + `Files.Read.All`. The `prompt=consent` query param now forces re-consent on login so newly-added scopes get granted explicitly.
+
+**First sync run:** 9 clients found — Belco, Clipex, Forza Capital, Hedx, Land of Plenty, OnTalent, PWAG, Think Water, Vee Design.
+
+**Source code now version-controlled** in `qurate-admin/supabase/functions/{ms-auth,sync-vips}/index.ts`. Future changes go through PR review.
+
+---
+
 ## 2026-05-02 — Epic 0: stop the runaway cron + dedupe
 
 **Trigger:** Audit revealed `eisenhower_tasks` had grown to 227,406 rows with only 2,056 distinct `source_email_id` values — ~110× duplication caused by a buggy dedup check in `ms-outlook-folders` running every 15 minutes via `sync-outlook-matrix` pg_cron.

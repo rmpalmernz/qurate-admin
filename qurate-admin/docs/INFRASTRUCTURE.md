@@ -16,13 +16,13 @@ There are two other projects under the same org (`qurate-qvos-main`, `alstonvill
 
 ---
 
-## Edge Functions (13)
+## Edge Functions (14)
 
 | Slug | verify_jwt | Triggered by | Notes |
 |---|---|---|---|
-| `ms-auth` | no | dashboard, other Edge Functions | OAuth + token refresh; service-role writes to `microsoft_oauth_tokens` |
+| `ms-auth` | no | dashboard, other Edge Functions | OAuth + token refresh; service-role writes to `microsoft_oauth_tokens`. **Source in `supabase/functions/ms-auth/`.** Scopes (as of 2026-05-02): Calendars.Read, Mail.ReadWrite, Sites.Read.All, Files.Read.All, offline_access |
 | `ms-calendar` | no | (no callers found) | Pulls Graph calendarview, upserts `calendar_events` |
-| `ms-outlook-folders` | no | **pg_cron `sync-outlook-matrix` (every 15 min)**, dashboard | Reads 4 mapped Outlook folders → AI-extracts tasks → inserts into `eisenhower_tasks`. **Currently runaway — see BRD §0.** |
+| `ms-outlook-folders` | no | **pg_cron `sync-outlook-matrix` (every 15 min)**, dashboard | Reads 4 mapped Outlook folders → AI-extracts tasks → inserts into `eisenhower_tasks`. **Cron paused — see below.** |
 | `delete-outlook-email` | no | dashboard | Deletes a Graph message |
 | `fetch-email` | no | dashboard | Fetches one Graph message by id |
 | `reimport-emails` | no | manual | Re-classification pass |
@@ -33,6 +33,7 @@ There are two other projects under the same org (`qurate-qvos-main`, `alstonvill
 | `active-prompt` | no | unknown | Returns active prompt from `ai_prompts` |
 | `sender-history` | no | unknown | Sender history lookup |
 | `follow-ups` | no | unknown | Populates `follow_ups` table |
+| `sync-vips` | no | **pg_cron `sync-vips-daily` (19:00 UTC daily)**, Settings tab "Sync now" button | Reads SharePoint `quratepty.sharepoint.com/sites/QurateClient/02. Work in Progress + 01. Archive` and personal OneDrive `1. Own - Engagements`. Extracts company names, dedupes, writes `user_preferences.vip_companies_auto`. **Source in `supabase/functions/sync-vips/`.** |
 
 ### Folder-to-quadrant mapping (used by `ms-outlook-folders`)
 
@@ -52,6 +53,7 @@ These are Outlook subfolders under Inbox. Names are sensitive to whitespace — 
 | Job | Schedule | Active | Calls |
 |---|---|---|---|
 | `sync-outlook-matrix` | `*/15 * * * *` (every 15 min) | **paused 2026-05-02** | `ms-outlook-folders` |
+| `sync-vips-daily` | `0 19 * * *` (19:00 UTC = 06:00 AEDT) | active | `sync-vips` |
 
 Paused via `cron.alter_job(..., active := false)` after producing 225,350 duplicate `eisenhower_tasks` rows. **Do not resume** until the dedup bug in `ms-outlook-folders` is fixed (see below) — without that fix, every cron tick will now fail with unique-index violations rather than duplicating, but it'll still burn Lovable AI calls before hitting the constraint.
 
