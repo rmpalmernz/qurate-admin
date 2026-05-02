@@ -34,6 +34,7 @@ There are two other projects under the same org (`qurate-qvos-main`, `alstonvill
 | `sender-history` | no | unknown | Sender history lookup |
 | `follow-ups` | no | unknown | Populates `follow_ups` table |
 | `sync-vips` | no | **pg_cron `sync-vips-daily` (19:00 UTC daily)**, Settings tab "Sync now" button | Reads SharePoint `quratepty.sharepoint.com/sites/QurateClient/02. Work in Progress + 01. Archive` and personal OneDrive `1. Own - Engagements`. Extracts company names, dedupes, writes `user_preferences.vip_companies_auto`. **Source in `supabase/functions/sync-vips/`.** |
+| `send-brief` | no | **pg_cron `send-brief-daily` (20:30 UTC weekdays = 06:30 AEST / 07:30 AEDT)**, future "Send now" UI | Calls `daily-brief` for today's brief, renders markdown → HTML, sends via Graph `/me/sendMail` to the authenticated user's inbox, marks `ai_daily_briefs.sent_at`. Idempotent: skips if already sent today (override with `{force:true}`). **Source in `supabase/functions/send-brief/`.** |
 
 ### Folder-to-quadrant mapping (used by `ms-outlook-folders`)
 
@@ -54,6 +55,7 @@ These are Outlook subfolders under Inbox. Names are sensitive to whitespace — 
 |---|---|---|---|
 | `sync-outlook-matrix` | `*/15 * * * *` (every 15 min) | **paused 2026-05-02** | `ms-outlook-folders` |
 | `sync-vips-daily` | `0 19 * * *` (19:00 UTC = 06:00 AEDT) | active | `sync-vips` |
+| `send-brief-daily` | `30 20 * * 1-5` (20:30 UTC weekdays = 06:30 AEST / 07:30 AEDT) | active | `send-brief` |
 
 Paused via `cron.alter_job(..., active := false)` after producing 225,350 duplicate `eisenhower_tasks` rows. **Do not resume** until the dedup bug in `ms-outlook-folders` is fixed (see below) — without that fix, every cron tick will now fail with unique-index violations rather than duplicating, but it'll still burn Lovable AI calls before hitting the constraint.
 
@@ -100,10 +102,7 @@ See `docs/BRD.md` §3 for the table-by-table breakdown. Highlights:
 Required:
 - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` — auto-injected
 - `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` — Microsoft OAuth
-- `LOVABLE_API_KEY` — Lovable AI Gateway (used by `daily-brief`, `ms-outlook-folders`)
-
-Not yet present (needed for Epic 2):
-- `CRON_SECRET` — to lock the scheduled `send-brief` invocation
+- `LOVABLE_API_KEY` — Lovable AI Gateway (used by `daily-brief`, `ms-outlook-folders`). **NB: as of 2026-05-02 this appears to be unset — `daily-brief` returns "LOVABLE_API_KEY is not configured" and therefore `send-brief` cannot generate fresh briefs. Set this in Supabase Dashboard → Project Settings → Edge Functions → Secrets to unblock the cron.**
 
 ---
 
