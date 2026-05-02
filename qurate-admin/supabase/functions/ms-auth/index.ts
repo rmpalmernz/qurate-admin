@@ -1,11 +1,19 @@
-// Microsoft OAuth orchestration + token storage.
+// Microsoft OAuth orchestration.
 // Source-controlled mirror of the deployed Edge Function (project btzlkiwmdegubbvzbmyo).
-// When you change this file, deploy with `supabase functions deploy ms-auth` (or via MCP).
 //
-// Scope additions (2026-05-02): Sites.Read.All + Files.Read.All to support sync-vips
-// reading Qurate client folders from SharePoint and personal OneDrive.
-// IMPORTANT: existing tokens were granted only Calendars.Read + Mail.ReadWrite + offline_access.
-// After deploying this update, the user must disconnect + reconnect to grant the new scopes.
+// Storage model (2026-05-02 Vault refactor):
+//   - The refresh token is stored encrypted in Supabase Vault under the secret name
+//     'microsoft_refresh_token'. Access via SECURITY DEFINER wrappers in the public schema:
+//        public.set_ms_refresh_token(text)
+//        public.get_ms_refresh_token() returns text
+//        public.delete_ms_refresh_token()
+//        public.has_ms_refresh_token() returns boolean
+//   - Access tokens are NEVER persisted. Every "give me an access token" call exchanges
+//     the stored refresh token at Microsoft and returns a fresh access token to the caller.
+//     ~300-500ms latency per call, but no bearer credential at rest.
+//
+// Scopes (2026-05-02): Calendars.Read, Mail.ReadWrite, Sites.Read.All, Files.Read.All,
+// offline_access. Adding a new scope requires a fresh user consent flow (prompt=consent).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -34,19 +42,40 @@ function getServiceClient() {
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 }
 
-async function getStoredToken() {
-  const sb = getServiceClient();
-  const { data, error } = await sb
-    .from("microsoft_oauth_tokens")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .single();
-  if (error && error.code !== "PGRST116") throw error;
-  return data;
+interface TokenResponse {
+  access_token: string;
+  refresh_token?: string;
+  expires_in: number;
+  scope?: string;
 }
 
-async function refreshAccessToken(refreshToken: string) {
+async function getStoredRefreshToken(): Promise<string | null> {
+  const sb = getServiceClient();
+  const { data, error } = await sb.rpc("get_ms_refresh_token");
+  if (error) throw new Error(`Failed to read refresh token from Vault: ${error.message}`);
+  return (data as string | null) ?? null;
+}
+
+async function storeRefreshToken(token: string): Promise<void> {
+  const sb = getServiceClient();
+  const { error } = await sb.rpc("set_ms_refresh_token", { token });
+  if (error) throw new Error(`Failed to store refresh token in Vault: ${error.message}`);
+}
+
+async function deleteRefreshToken(): Promise<void> {
+  const sb = getServiceClient();
+  const { error } = await sb.rpc("delete_ms_refresh_token");
+  if (error) throw new Error(`Failed to delete refresh token from Vault: ${error.message}`);
+}
+
+async function hasRefreshToken(): Promise<boolean> {
+  const sb = getServiceClient();
+  const { data, error } = await sb.rpc("has_ms_refresh_token");
+  if (error) throw new Error(`Failed to check refresh token presence: ${error.message}`);
+  return Boolean(data);
+}
+
+async function refreshAccessToken(refreshToken: string): Promise<TokenResponse> {
   const body = new URLSearchParams({
     client_id: CLIENT_ID,
     client_secret: CLIENT_SECRET,
@@ -66,10 +95,10 @@ async function refreshAccessToken(refreshToken: string) {
     throw new Error(`Token refresh failed [${res.status}]: ${err}`);
   }
 
-  return await res.json();
+  return await res.json() as TokenResponse;
 }
 
-async function exchangeCodeForTokens(code: string, redirectUri: string) {
+async function exchangeCodeForTokens(code: string, redirectUri: string): Promise<TokenResponse> {
   const body = new URLSearchParams({
     client_id: CLIENT_ID,
     client_secret: CLIENT_SECRET,
@@ -90,44 +119,22 @@ async function exchangeCodeForTokens(code: string, redirectUri: string) {
     throw new Error(`Code exchange failed [${res.status}]: ${err}`);
   }
 
-  return await res.json();
+  return await res.json() as TokenResponse;
 }
 
-async function storeTokens(tokens: {
-  access_token: string;
-  refresh_token: string;
-  expires_in: number;
-  scope?: string;
-}) {
-  const sb = getServiceClient();
-  const expiresAt = new Date(Date.now() + tokens.expires_in * 1000).toISOString();
-
-  await sb.from("microsoft_oauth_tokens").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-
-  const { error } = await sb.from("microsoft_oauth_tokens").insert({
-    access_token: tokens.access_token,
-    refresh_token: tokens.refresh_token,
-    expires_at: expiresAt,
-    scope: tokens.scope || SCOPES,
-  });
-
-  if (error) throw error;
-}
-
-async function getValidAccessToken(): Promise<string> {
-  const stored = await getStoredToken();
-  if (!stored) throw new Error("No Microsoft tokens found. Please connect your Outlook account first.");
-
-  const expiresAt = new Date(stored.expires_at).getTime();
-  const now = Date.now();
-
-  if (now > expiresAt - 5 * 60 * 1000) {
-    const refreshed = await refreshAccessToken(stored.refresh_token);
-    await storeTokens(refreshed);
-    return refreshed.access_token;
+// Always exchanges the stored refresh token for a fresh access token. If MS rotates
+// the refresh token, the new one is persisted to Vault. Access token is returned to
+// the caller, never stored.
+async function getFreshAccessToken(): Promise<string> {
+  const stored = await getStoredRefreshToken();
+  if (!stored) {
+    throw new Error("Not connected to Microsoft. Please sign in again.");
   }
-
-  return stored.access_token;
+  const refreshed = await refreshAccessToken(stored);
+  if (refreshed.refresh_token && refreshed.refresh_token !== stored) {
+    await storeRefreshToken(refreshed.refresh_token);
+  }
+  return refreshed.access_token;
 }
 
 Deno.serve(async (req) => {
@@ -154,7 +161,7 @@ Deno.serve(async (req) => {
       authUrl.searchParams.set("redirect_uri", redirectUri);
       authUrl.searchParams.set("scope", SCOPES);
       authUrl.searchParams.set("response_mode", "query");
-      // prompt=consent forces re-consent, ensuring the user explicitly grants any newly added scopes.
+      // prompt=consent forces re-consent so newly-added scopes get explicitly granted.
       authUrl.searchParams.set("prompt", "consent");
 
       return new Response(JSON.stringify({ auth_url: authUrl.toString() }), {
@@ -172,7 +179,10 @@ Deno.serve(async (req) => {
       }
 
       const tokens = await exchangeCodeForTokens(code, redirect_uri);
-      await storeTokens(tokens);
+      if (!tokens.refresh_token) {
+        throw new Error("OAuth response missing refresh_token (offline_access scope not granted?)");
+      }
+      await storeRefreshToken(tokens.refresh_token);
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -180,23 +190,22 @@ Deno.serve(async (req) => {
     }
 
     if (action === "disconnect") {
-      const sb = getServiceClient();
-      await sb.from("microsoft_oauth_tokens").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+      await deleteRefreshToken();
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     if (action === "status") {
-      const stored = await getStoredToken();
-      const connected = !!stored;
-      const scope = stored?.scope || null;
-      return new Response(JSON.stringify({ connected, scope }), {
+      const connected = await hasRefreshToken();
+      return new Response(JSON.stringify({ connected }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const accessToken = await getValidAccessToken();
+    // Default: return a fresh access token. Refreshes from the Vault-stored refresh
+    // token on every call. Access token is not persisted anywhere.
+    const accessToken = await getFreshAccessToken();
     return new Response(JSON.stringify({ access_token: accessToken }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

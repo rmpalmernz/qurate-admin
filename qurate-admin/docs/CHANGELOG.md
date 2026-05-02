@@ -4,6 +4,24 @@ Records non-code changes made directly to the live Supabase project (`btzlkiwmde
 
 ---
 
+## 2026-05-02 — Microsoft OAuth refresh token moved to Vault
+
+**Why:** The previous design persisted both the refresh token and the access token in plaintext in `public.microsoft_oauth_tokens`. A database leak or an over-permissive RLS change would have handed an attacker bearer credentials. Moving to Vault encrypts the refresh token at rest and removes access-token storage entirely.
+
+**What changed:**
+- Migration `ms_auth_vault_refactor` created four SECURITY DEFINER wrappers (`set_ms_refresh_token`, `get_ms_refresh_token`, `delete_ms_refresh_token`, `has_ms_refresh_token`) that proxy `vault.secrets` operations. Granted `EXECUTE` to `service_role` only.
+- Dropped `public.microsoft_oauth_tokens` (was already empty so no data lost).
+- `ms-auth` v46 deployed: callback writes only the refresh token (to Vault); default action always exchanges the stored refresh token for a fresh access token at Microsoft and returns it to the caller. Access tokens never persist anywhere.
+
+**Operational impact:**
+- Every Graph-token request now incurs ~300–500ms for the Microsoft refresh round-trip (was ~50ms when serving cached tokens).
+- Microsoft refresh-token rotation is handled — if MS returns a new refresh token, it's written to Vault.
+- **Richard must re-login** through Microsoft to re-establish the refresh token in Vault. The `ms_auth_connected` cookie is stale; visiting the dashboard will hit the broken state and a Sign-in click takes care of it.
+
+**Verified:** `ms-auth?action=status` returns `{connected: false}` (no token in Vault), with a 200 status — the wrappers and Vault are wired.
+
+---
+
 ## 2026-05-02 — VIP auto-sync from SharePoint
 
 **What:** New Edge Function `sync-vips` plus pg_cron `sync-vips-daily` (`0 19 * * *`, 06:00 AEDT). Pulls company names from:

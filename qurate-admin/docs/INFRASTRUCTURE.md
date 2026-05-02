@@ -20,7 +20,7 @@ There are two other projects under the same org (`qurate-qvos-main`, `alstonvill
 
 | Slug | verify_jwt | Triggered by | Notes |
 |---|---|---|---|
-| `ms-auth` | no | dashboard, other Edge Functions | OAuth + token refresh; service-role writes to `microsoft_oauth_tokens`. **Source in `supabase/functions/ms-auth/`.** Scopes (as of 2026-05-02): Calendars.Read, Mail.ReadWrite, Sites.Read.All, Files.Read.All, offline_access |
+| `ms-auth` | no | dashboard, other Edge Functions | OAuth orchestration. Refresh token stored encrypted in **Supabase Vault** (`microsoft_refresh_token` secret). **Access tokens are NEVER persisted** — every default invocation refreshes from Vault and returns a fresh access token to the caller. **Source in `supabase/functions/ms-auth/`.** Scopes: Calendars.Read, Mail.ReadWrite, Sites.Read.All, Files.Read.All, offline_access |
 | `ms-calendar` | no | (no callers found) | Pulls Graph calendarview, upserts `calendar_events` |
 | `ms-outlook-folders` | no | **pg_cron `sync-outlook-matrix` (every 15 min)**, dashboard | Reads 4 mapped Outlook folders → AI-extracts tasks → inserts into `eisenhower_tasks`. **Cron paused — see below.** |
 | `delete-outlook-email` | no | dashboard | Deletes a Graph message |
@@ -88,7 +88,7 @@ See `docs/BRD.md` §3 for the table-by-table breakdown. Highlights:
 
 - **`eisenhower_tasks`** — 227,407 rows, ~160× duplicated. Cleanup needed.
 - **`email_processing_history`** — 2,343 rows. Rich AI classification, but the dashboard ignores it.
-- **`microsoft_oauth_tokens`** — 0 rows despite working OAuth flow. Needs investigation.
+- **`microsoft_oauth_tokens`** — DROPPED 2026-05-02. Refresh token now stored in `vault.secrets` as `microsoft_refresh_token`; access tokens are no longer persisted at all.
 - **`calendar_events`** — 0 rows. Function exists, no caller.
 - **`ai_daily_briefs`** — 1 row. The brief generator works.
 - **`api_cost_log`** — 3,340 rows. Solid AI cost tracking already in place.
@@ -109,7 +109,7 @@ Not yet present (needed for Epic 2):
 
 ## RLS posture
 
-- 3 tables locked down (no policies): `calendar_events`, `microsoft_oauth_tokens`, `teams_messages`. Only service-role writes.
+- 2 tables locked down (no policies): `calendar_events`, `teams_messages`. Only service-role writes. (`microsoft_oauth_tokens` was dropped on 2026-05-02 — refresh token is in Vault now.)
 - 14 tables with permissive `USING(true) WITH CHECK(true)` policies. Open to any holder of the anon key. Acceptable for single-user MVP, **must tighten before multi-user** (Epic 7).
 - Several SELECT-only policies on `core_*`, `personal_items`, `strategy_rocks` (read for `public`, no write).
 
