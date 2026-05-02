@@ -51,9 +51,32 @@ These are Outlook subfolders under Inbox. Names are sensitive to whitespace — 
 
 | Job | Schedule | Active | Calls |
 |---|---|---|---|
-| `sync-outlook-matrix` | `*/15 * * * *` (every 15 min) | **true (should be paused — see Epic 0)** | `ms-outlook-folders` |
+| `sync-outlook-matrix` | `*/15 * * * *` (every 15 min) | **paused 2026-05-02** | `ms-outlook-folders` |
+
+Paused via `cron.alter_job(..., active := false)` after producing 225,350 duplicate `eisenhower_tasks` rows. **Do not resume** until the dedup bug in `ms-outlook-folders` is fixed (see below) — without that fix, every cron tick will now fail with unique-index violations rather than duplicating, but it'll still burn Lovable AI calls before hitting the constraint.
 
 The cron command stores the Supabase anon key as plaintext in the `cron.job` table. Public anon key = low risk but inelegant.
+
+### `ms-outlook-folders` dedup bug (root cause of the runaway)
+
+The function builds an `existingIds` set from this query:
+```ts
+const { data: existingTasks } = await sb
+  .from("eisenhower_tasks")
+  .select("source_email_id, source_email_ids")
+  .eq("source_type", "email");
+```
+Supabase's PostgREST defaults to **1000 rows per page** unless you explicitly paginate. With 227k tasks this returned only the first 1000, so any messageId not in those first 1000 looked "new" and got re-inserted — every 15 minutes.
+
+**Fix when you're ready to re-enable the cron:** query specifically for the messageIds being checked, not all-then-filter:
+```ts
+const { data: existingTasks } = await sb
+  .from("eisenhower_tasks")
+  .select("source_email_id")
+  .eq("source_type", "email")
+  .in("source_email_id", messageIds);
+```
+The unique partial index `ux_eisenhower_tasks_source_email_id` is now also in place as a defence-in-depth — even if the application-layer dedup misses something, the database will reject the duplicate INSERT.
 
 ---
 
