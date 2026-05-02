@@ -16,7 +16,7 @@ export const DEFAULT_SETTINGS: Settings = {
   focusStart: '09:00',
   focusEnd: '12:00',
   timezone: 'Australia/Sydney',
-  vipCompanies: ['Think Water', 'Therefore', 'Providence', 'Armillary', 'Alstonville'],
+  vipCompanies: ['Think Water', 'Land of Plenty', 'Therefore', 'Providence', 'Armillary', 'Alstonville'],
 }
 
 const DB_KEY: Record<keyof Settings, string> = {

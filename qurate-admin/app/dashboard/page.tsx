@@ -2031,8 +2031,13 @@ function ChatTab() {
 }
 
 // ─── SETTINGS TAB ─────────────────────────────────────────────────────────────
-function SettingsTab({ connected, onDisconnect }: { connected: boolean; onDisconnect: () => void }) {
-  const { settings, save, loading } = useUserSettings()
+function SettingsTab({ connected, onDisconnect, settings, save, loading }: {
+  connected: boolean
+  onDisconnect: () => void
+  settings: ReturnType<typeof useUserSettings>['settings']
+  save: ReturnType<typeof useUserSettings>['save']
+  loading: boolean
+}) {
   const [briefingTime, setBriefingTime] = useState(DEFAULT_SETTINGS.briefingTime)
   const [focusStart, setFocusStart]     = useState(DEFAULT_SETTINGS.focusStart)
   const [focusEnd, setFocusEnd]         = useState(DEFAULT_SETTINGS.focusEnd)
@@ -2197,7 +2202,8 @@ export default function Dashboard() {
   const [tasks, setTasks]       = useState<EisenhowerTask[]>([])
   const [emailLoading, setEmailLoading] = useState(false)
   const [connected, setConnected] = useState(false)
-  const { settings } = useUserSettings()
+  const userSettings = useUserSettings()
+  const { settings } = userSettings
 
   // Verify MS token on mount; redirect to login if missing
   useEffect(() => {
@@ -2305,7 +2311,7 @@ export default function Dashboard() {
         {tab === 'matrix'    && <MatrixTab tasks={tasks} onRefresh={loadTasks} />}
         {tab === 'clients'   && <ClientsTab emails={emails} tasks={tasks} vipCompanies={settings.vipCompanies} />}
         {tab === 'chat'      && <ChatTab />}
-        {tab === 'settings'  && <SettingsTab connected={connected} onDisconnect={() => { setConnected(false); window.location.href = '/api/auth/logout' }} />}
+        {tab === 'settings'  && <SettingsTab connected={connected} onDisconnect={() => { setConnected(false); window.location.href = '/api/auth/logout' }} settings={userSettings.settings} save={userSettings.save} loading={userSettings.loading} />}
       </div>
 
       {/* Fixed bottom navigation — Outlook-style */}
