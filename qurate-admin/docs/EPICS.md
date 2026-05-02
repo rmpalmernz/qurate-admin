@@ -1,213 +1,188 @@
-# Epics — Path to Production
+# Epics — Path to Production (v2, post Supabase audit)
 
-Source of truth: `docs/BRD.md`. This file converts the BRD's gap analysis into prioritised, scoped epics with clear acceptance criteria so we can build them one at a time.
+> Replaces v1. The v1 epics treated the project as if only the Next.js repo existed. After auditing the live Supabase project we now know:
+> - The classification pipeline already exists (it just isn't wired to the dashboard)
+> - The daily brief already exists (it just isn't scheduled or emailed)
+> - There's a runaway cron quietly burning money
+>
+> See `docs/BRD.md` for the full ground-truth picture.
 
-**Scope assumption:** "Production" here means "reliable enough that Richard depends on it daily, runs unattended, and survives an MS token expiry, a Vercel deploy, and a week of inattention." Multi-tenant SaaS is called out separately as Epic 7 (optional for v1).
-
-Order is value × leverage. Epics 1–4 are the critical path. 5–6 are quality hardening. 7 is a product decision.
-
----
-
-## Epic 1 — Email Intelligence Pipeline
-
-**Why:** The single biggest hole in the product. The UI consumes `ai_quadrant`, `ai_priority_level`, `ai_category`, `ai_client_name` on every email but **nothing in the codebase writes them**. Today, triage falls back to a domain-substring heuristic in `emailCategory()`. Without this epic, the agent isn't actually intelligent — it's a styled inbox.
-
-**Scope**
-- New Supabase Edge Function `/classify-email` (Claude Haiku):
-  - Input: a Graph email object (id, subject, from, body preview)
-  - Output: `{ ai_quadrant, ai_priority_level, ai_category, ai_client_name }`
-- New table `email_classifications` keyed by Graph `message.id` (string PK), with `user_id`, the four AI fields, `classified_at`, `model_version`
-- Inbox loader (`loadEmails()` in `app/dashboard/page.tsx`) does a join: for each fetched message, look up its classification row; if missing, fire-and-forget call to `/classify-email` and update on next refresh
-- Migration adds `email_classifications` table with RLS
-
-**Acceptance criteria**
-- Open Email tab → every email shows a quadrant chip without falling through to heuristics
-- Inspect `emails[0]` in browser console → `ai_quadrant` etc. populated from DB, not from `emailCategory()` fallback
-- Re-render is fast: classification is async, doesn't block first paint
-- Costs: log token usage per call, expect ~$0.0002 per email at Haiku rates
-
-**Dependencies:** none. Can ship standalone.
-
-**Estimate:** 1–2 sessions.
+Critical path to "scheduled email brief in production": **Epic 0 → Epic 4 → Epic 2 → Epic 6**.
 
 ---
 
-## Epic 2 — Scheduled Daily Brief via Email
+## Epic 0 — Stop the runaway, clean up the data 🚨
 
-**Why:** The brief today only runs when Richard remembers to click the button. A scheduled brief landing in his inbox every morning is the autonomous-EA promise of the product. This is the user's refined plan — restated here for the record.
-
-**Hard constraint** that drives the design: MS access tokens are short-lived (~1 hour) and live only in the Edge Function's runtime. A cron has no session, so we must persist a **refresh token** to mint access tokens server-side.
+**Why:** A pg_cron job (`sync-outlook-matrix`, every 15 min) calls `ms-outlook-folders` which inserts duplicate `eisenhower_tasks` rows. 227,407 total rows, only 1,401 distinct titles → ~160× duplication. Each tick burns Lovable AI credits classifying emails it has already seen. Until this is fixed, every other epic is operating on corrupted data and the AI bill keeps climbing.
 
 **Scope**
-- Schema: `user_tokens` table (single row per user — `user_id`, `refresh_token`, `expires_at`, `updated_at`)
-- `ms-auth` Edge Function: persist `refresh_token` on OAuth callback (~5 line addition)
-- New Edge Function `/send-brief`:
-  1. Read refresh token → exchange for access token via Azure AD
-  2. Fetch `/me/messages` + `/me/calendarView` (same as dashboard)
-  3. Call Claude (same prompt as `BriefingTab` uses)
-  4. Insert into `ai_daily_briefs`
-  5. Send via Graph `/me/sendMail` to user's own address with high-priority flag
-- New Next.js route `/api/cron/brief` (cron-secret protected) → POSTs to `/send-brief`
-- `vercel.json` cron entry pointing at `/api/cron/brief`
-
-**What is NOT in scope** (deliberately)
-- No new UI
-- No changes to existing Edge Functions besides the refresh-token persist line
-- No multi-recipient logic, no opt-in/opt-out flows (single user)
+1. **Pause the cron immediately** (`UPDATE cron.job SET active = false WHERE jobname = 'sync-outlook-matrix'`)
+2. **Diagnose the dedup failure** in `ms-outlook-folders`. Most likely cause: the `existingIds` set is built from a 227k-row scan that times out or runs concurrently with another cron tick. Verify by checking edge-function logs around the duplicate creation timestamps.
+3. **Add a unique index** on `(source_email_id) WHERE source_email_id IS NOT NULL AND source_type = 'email'` so the database itself rejects duplicates. This is the safety net.
+4. **Clean existing duplicates**: keep the earliest row per `source_email_id`, delete the rest. Estimate: 226k rows deleted, 1,401 kept.
+5. **Reduce cron frequency** to hourly or run on Graph webhook instead.
+6. **Resume cron** only once the unique index is in place.
 
 **Acceptance criteria**
-- Brief lands in Richard's inbox at the configured local time, every weekday
-- Manual `curl` to `/send-brief` with valid auth header generates and sends a brief in <30s
-- A row appears in `ai_daily_briefs` for every send
-- Killing and restarting the Vercel deployment doesn't break the schedule
-
-**Decisions needed before build** (see chat)
-1. Send time (UTC)
-2. Brief prompt: reuse vs. tuned-for-email
-3. Email format: HTML vs. plain text
-4. Cron secret name + storage
-
-**Dependencies:** Epic 1 is *not* required (the brief works on raw emails) but the brief's quality improves significantly once classifications exist. Reasonable to ship Epic 2 first if you want the unblock-the-loop win sooner.
-
-**Estimate:** 1–2 sessions.
-
----
-
-## Epic 3 — Email → Task Extraction
-
-**Why:** Today, Eisenhower task creation is purely manual. The most common workflow ("this email needs an action — capture it") requires retyping. A one-click "extract tasks from this email" turns inbox triage into matrix progress and closes the email→task loop the BRD calls out.
-
-**Scope**
-- New Edge Function `/extract-tasks` (Claude Haiku):
-  - Input: email id, subject, from, body
-  - Output: array of `{ title, description, quadrant, due_date?, estimated_minutes? }`
-- New button in email detail panel: "Extract tasks"
-- For each returned task, insert into `eisenhower_tasks` with `email_ids` set to source email
-- UX: brief inline confirmation showing how many tasks were created, with link to Matrix tab
-
-**Acceptance criteria**
-- Open an email with action items → click "Extract tasks" → tasks appear in Matrix tab within 5s
-- `eisenhower_tasks.email_ids` correctly references the source email
-- Clicking a task in Matrix can navigate back to its source email (via `email_ids`)
-- Idempotency: re-clicking on the same email doesn't double-create (dedupe on `(email_id, title)` or last-extraction timestamp on the email row)
-
-**Dependencies:** none, but quality benefits from Epic 1.
+- `select count(*), count(distinct source_email_id) from eisenhower_tasks where source_type='email'` returns roughly equal numbers
+- Cron runs without creating duplicates (verified by tasks created vs distinct emails over 24h)
+- `api_cost_log` for `email_task_extraction` operation drops by ~95%
 
 **Estimate:** 1 session.
 
 ---
 
-## Epic 4 — Settings Persistence + Multi-Device
+## Epic 1 — Bridge dashboard ↔ back-of-house
 
-**Why:** Briefing time, focus block window, and VIP client list all live in `localStorage`. Switch devices → settings gone. More critically, **Epic 2's cron has no `localStorage`** so it can't read the configured send time. Persisting settings to Supabase is a prerequisite for any autonomous behaviour.
+**Why:** The dashboard reads from 2 of 21 tables. The back-of-house has been classifying emails into `email_processing_history` (2,343 rows) and the daily-brief reads it, but the dashboard doesn't. So Richard sees raw Graph emails with heuristic categorisation while a richer classification sits in the database, ignored.
 
 **Scope**
-- New table `user_settings` (one row per user): `briefing_time_local`, `briefing_timezone` (IANA), `focus_block_start`, `focus_block_end`, `vip_clients` (text[]), `auto_archive_rules` (jsonb), `updated_at`
-- Migrate the SettingsTab's `localStorage` reads/writes to Supabase REST calls
-- Migration of existing `localStorage` values on first load (one-time)
-- Edge Functions read settings from `user_settings` instead of receiving them as request params
+1. **Email tab**: instead of fetching only from Graph, JOIN with `email_processing_history` on `email_id`. Display the AI category, priority level, suggested actions, and client. Heuristic fallback only when the email hasn't been classified yet.
+2. **Calendar tab**: switch to reading from `calendar_events` (call `ms-calendar` with `persist=true` first to populate). Falls back to live Graph if table empty.
+3. **Tasks tab**: filter `eisenhower_tasks` by `quadrant_override = false` to surface AI suggestions vs human overrides; expose the `quadrant_override` toggle so Richard can correct the AI.
+4. **Clients tab**: switch from hardcoded VIP_CLIENTS to reading `vip_contacts` (after Epic 4 populates it).
+5. **Briefing tab**: it already reads `ai_daily_briefs` correctly. Add a "what data was used" footer using the `dataSnapshot` field returned by the Edge Function.
+6. New tab or sidebar: **Follow-ups** (read from `follow_ups`), **Decisions** (`core_decisions`), **Rocks** (`strategy_rocks`).
 
 **Acceptance criteria**
-- Open Settings on a different device → values match
-- Update VIP list → reflected in ClientsTab on a different browser session
-- Clear browser storage → settings survive
-- `/send-brief` Edge Function reads send time from `user_settings`, not env vars
+- Dashboard email categorisation matches `email_processing_history.ai_category` for any email present there
+- Calendar shows from cached table if available
+- A new task created via the matrix is visible in `eisenhower_tasks` with `quadrant_override = true`
 
-**Dependencies:** must ship before Epic 2 hits production (cron needs to know what time to send).
+**Dependencies:** Epic 0 (don't build on corrupted task data).
 
-**Estimate:** 1 session.
+**Estimate:** 2–3 sessions.
 
 ---
 
-## Epic 5 — Dashboard Decomposition
+## Epic 2 — Schedule the daily brief + email delivery
 
-**Why:** `app/dashboard/page.tsx` is ~2,300 lines containing all 7 tabs. It's the single biggest blocker to working on multiple features in parallel and the file most likely to cause merge conflicts. Every future epic gets cheaper after this lands.
-
-**Scope**
-- Move each `*Tab` function to its own file under `app/dashboard/_components/`
-- Hoist data-fetching hooks (`useEmails`, `useCalendar`, `useTasks`, `useBriefs`) into `app/dashboard/_hooks/`
-- Co-locate types in `app/dashboard/_types.ts`
-- Tab routing stays in `page.tsx` — but `page.tsx` should drop below ~300 lines
-- **No behavioural changes** — pure refactor
-
-**Acceptance criteria**
-- `wc -l app/dashboard/page.tsx` returns a number < 300
-- Smoke test: every tab still works exactly as before, including drag/drop and AI calls
-- No change in bundle size of >5%
-
-**Dependencies:** none, but should land before Epic 6 (tests are easier to write against decomposed code).
-
-**Estimate:** 1 session, no AI calls needed during the work.
-
----
-
-## Epic 6 — Quality & Observability
-
-**Why:** No tests, no error tracking. With autonomous behaviour added (Epic 2), silent failures become a real risk. Production = you find out when something breaks before Richard does.
+**Why:** `daily-brief` already exists and works (the Gate 5 prompt is sophisticated). Two things are missing: (a) it's only triggered by the dashboard, never on a schedule; (b) it stores the brief but never delivers it.
 
 **Scope**
-- Playwright smoke suite covering: login → dashboard → load emails → generate brief → create task → drag task. ~6 tests, run on Vercel preview deploys.
-- Sentry (or similar) wired into both Next.js app and Edge Functions
-- Health check endpoint `/api/health` that pings Supabase + Anthropic and returns 200/503
-- Edge Function structured logs (request id, user id, latency, token usage) into Supabase `function_logs` table
-- Vercel deploy hook to run `npm run build` + Playwright on PRs
+1. **Verify `microsoft_oauth_tokens` populates correctly.** Currently empty — see BRD §4. Do a fresh OAuth flow and confirm a row appears. If not, fix `ms-auth` `storeTokens`.
+2. **Add a `send-brief` Edge Function** that:
+   - Calls existing `daily-brief` (with `forceRefresh: false` so we use today's cache if it exists)
+   - Converts the markdown brief to HTML (use `marked` or similar)
+   - Calls Graph `/me/sendMail` to send to Richard's address (uses `ms-auth` to get token)
+   - Marks the brief as sent (new `sent_at` column on `ai_daily_briefs`)
+3. **Add pg_cron entry**:
+   ```sql
+   SELECT cron.schedule('daily-brief-send', '30 19 * * 1-5',  -- 06:30 Sydney AEST = 20:30 UTC
+     $$ SELECT net.http_post(url := '<send-brief-url>', headers := ..., body := '{}') $$);
+   ```
+4. **Settings UI** to control send time + days-of-week (writes to `user_preferences` after Epic 4).
+
+**What is NOT in scope:** redesigning the brief itself. The Gate 5 prompt is good.
 
 **Acceptance criteria**
-- Break a fetch URL on a feature branch → CI fails, doesn't merge
-- Force a 500 in `/send-brief` → Sentry captures it, you get an alert
-- Open `/api/health` → returns dependency status
+- Brief lands in Richard's inbox at the configured time, weekdays only
+- Manual `curl` to `/send-brief` returns success in <30s with brief in body
+- `ai_daily_briefs.sent_at` populated
+- Skipping a day (e.g. weekend or paused) doesn't double-send
 
-**Dependencies:** Epic 5 makes test-writing easier but not required.
+**Dependencies:** Epic 0 (don't build on broken data), confirmed working `microsoft_oauth_tokens`.
 
 **Estimate:** 1–2 sessions.
 
 ---
 
-## Epic 7 — Multi-Tenant Foundation *(optional for v1)*
+## Epic 3 — Version-control the back-of-house
 
-**Why:** Today "Richard" is hardcoded into prompts and there is no `user_id` column anywhere. If the product stays personal, this epic can be deferred indefinitely. If you ever want a second user (an exec at Therefore, Armillary, etc.), every epic above gets re-done unless this lands first.
-
-**Strong recommendation:** even if staying single-user, **add `user_id` to all tables now** with `auth.uid()` defaults. The cost is small now and immense later.
+**Why:** 13 Edge Functions and 38 migrations live only in Supabase. If the project is deleted or someone trips a delete, recovery is hard. Also: making changes via the dashboard is opaque; PRs against `supabase/functions/<name>/index.ts` are reviewable.
 
 **Scope**
-- Add Supabase Auth (email magic link or MS SSO mapping)
-- `user_id uuid not null default auth.uid()` on `eisenhower_tasks`, `ai_daily_briefs`, `email_classifications`, `user_settings`, `user_tokens`
-- RLS policy: `auth.uid() = user_id` on every table
-- Replace hardcoded "Richard" in prompts with the authenticated user's display name (from MS Graph `/me`)
-- Onboarding: first-time MS OAuth → creates user row + empty settings + redirects to Settings
+1. Create `supabase/` folder in the repo
+2. `supabase/functions/<slug>/index.ts` for each of the 13 Edge Functions (pull current source via MCP)
+3. `supabase/migrations/<timestamp>_<name>.sql` for each migration (pull via MCP)
+4. `supabase/seed.sql` for the seed data (clients, vips, prompts)
+5. Add Supabase CLI to dev dependencies + `npm run supabase:db-push`, `npm run supabase:functions-deploy` scripts
+6. Document in README how to deploy
 
 **Acceptance criteria**
-- Two users can log in to the same deployment and see only their own emails/tasks/briefs
-- All Edge Functions enforce `user_id` filtering server-side
-- No reference to "Richard" remains in code or prompts
+- `supabase functions deploy --no-verify-jwt <slug>` deploys identical-to-prod source from the repo
+- Schema diff between repo and Supabase is empty
+- A new contributor can clone the repo and bring up an empty Supabase project that matches prod
 
-**Dependencies:** ideally *all other epics* take `user_id` into account from day one; doing this last means revisiting them.
-
-**Estimate:** 2–3 sessions (mostly migration + auth setup).
+**Estimate:** 1 session (mostly mechanical pulling and committing).
 
 ---
 
-## Suggested Order
+## Epic 4 — Settings to Supabase + VIP propagation (shrunk)
 
-```
-Now ──▶ Epic 4 (Settings persistence)        ← unblocks Epic 2
-        Epic 2 (Scheduled brief via email)   ← biggest user-facing win
-        Epic 1 (Classification pipeline)     ← biggest product-quality win
-        Epic 3 (Email → tasks)               ← biggest UX win
-        Epic 5 (Decompose dashboard)         ← every future epic gets cheaper
-        Epic 6 (Tests + observability)       ← production readiness
-Later ─▶ Epic 7 (Multi-tenant)               ← only if/when needed
-```
+**Why:** Settings (briefing time, focus block, VIP list) live in `localStorage` so:
+- They don't survive a device switch
+- The cron in Epic 2 can't read them
+- Editing the VIP list does nothing (the rest of the app uses the hardcoded `VIP_CLIENTS` constant)
 
-**Critical path to "scheduled email brief in production":** Epic 4 → Epic 2 → Epic 6 (tests for the cron path).
+The `user_preferences` table (key/value, RLS open) and `vip_contacts` table both exist already.
+
+**Scope**
+1. Refactor SettingsTab to load/save from `user_preferences` (keys: `briefing_time`, `briefing_timezone`, `focus_start`, `focus_end`)
+2. Migrate VIP list to `vip_contacts` table
+3. Move `VIP_CLIENTS` constant out — replace with a `useVipContacts()` hook used by `emailCategory()`, `ClientsTab`, briefing prompt context
+4. One-time localStorage → Supabase migration on first dashboard load
+
+**Acceptance criteria**
+- Open Settings on different device → values match
+- Add a new VIP → reflected immediately in Email tab and Clients tab
+- localStorage `pref_*` keys cleared after migration
+
+**Dependencies:** none.
+
+**Estimate:** 1 session.
 
 ---
 
-## Out of scope (deferred from BRD)
+## Epic 5 — Dashboard decomposition (carry forward)
 
-- Calendar event creation / RSVP (BRD §6 D9)
-- Inbox search UI (BRD §6 D10)
+Unchanged from v1. ~2,300-line `app/dashboard/page.tsx` → split each tab into its own file under `app/dashboard/_components/`, hooks under `app/dashboard/_hooks/`. No behavioural changes. Lands the prerequisite for parallel feature work and proper testing.
+
+**Estimate:** 1 session.
+
+---
+
+## Epic 6 — Quality & observability (carry forward)
+
+Unchanged from v1. Playwright smoke tests, Sentry, `/api/health`, structured Edge Function logs. Becomes critical once Epic 0 is fixed and Epic 2 ships scheduled briefs (silent failures = Richard doesn't get his brief and doesn't know).
+
+**Estimate:** 1–2 sessions.
+
+---
+
+## Epic 7 — Multi-tenant (deferred)
+
+Unchanged from v1. Only relevant if you want a second user. Most epics above will need revisiting (add `user_id` everywhere, switch RLS to `auth.uid()`, dynamic prompts, onboarding flow).
+
+---
+
+## Out of scope
+
+- Calendar event creation / RSVP
+- Inbox search UI
 - Task recurrence
-- Push notifications (PWA-based) — replaced by email delivery in Epic 2
+- Push notifications (replaced by email in Epic 2)
+- Rebuilding the brief itself (Gate 5 is good)
+- Building a new email classifier (`email_processing_history` already does this — Epic 1 just consumes it)
 
-These can be added once the agent is reliably autonomous and the platform is stable.
+---
+
+## Suggested order
+
+```
+WEEK 1
+  Epic 0  — Stop the runaway (urgent, ~1 session)
+  Epic 4  — Settings persistence (~1 session)
+  Epic 2  — Scheduled email brief (~1–2 sessions)
+
+WEEK 2
+  Epic 1  — Bridge dashboard ↔ back-of-house (~2–3 sessions)
+  Epic 3  — Version-control back-of-house (~1 session)
+
+WEEK 3+ (as needed)
+  Epic 5  — Decompose dashboard
+  Epic 6  — Tests + observability
+
+LATER
+  Epic 7  — Multi-tenant
+```
