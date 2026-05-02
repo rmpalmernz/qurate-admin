@@ -2045,6 +2045,28 @@ function SettingsTab({ connected, onDisconnect, settings, save, loading }: {
   const [newContact, setNewContact]     = useState('')
   const [saved, setSaved]               = useState(false)
   const [saving, setSaving]             = useState(false)
+  const [syncing, setSyncing]           = useState(false)
+  const [syncMessage, setSyncMessage]   = useState<string | null>(null)
+
+  async function triggerVipSync() {
+    setSyncing(true)
+    setSyncMessage(null)
+    try {
+      const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/sync-vips`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${ANON_KEY}`, apikey: ANON_KEY, 'Content-Type': 'application/json' },
+      })
+      const data = await res.json()
+      if (!res.ok || data?.success === false) {
+        setSyncMessage(`Sync failed: ${data?.error || res.statusText}`)
+      } else {
+        setSyncMessage(`Synced ${data.count ?? 0} clients from SharePoint. Reload to see them.`)
+      }
+    } catch (e) {
+      setSyncMessage(`Sync failed: ${e instanceof Error ? e.message : 'Unknown error'}`)
+    }
+    setSyncing(false)
+  }
 
   // Hydrate local form state once settings have loaded from Supabase.
   useEffect(() => {
@@ -2109,10 +2131,10 @@ function SettingsTab({ connected, onDisconnect, settings, save, loading }: {
         </div>
       </Card>
 
-      {/* VIP Clients */}
+      {/* VIP Clients — Manual */}
       <Card>
-        <h3 style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 600, color: '#C19131', textTransform: 'uppercase', letterSpacing: '0.8px' }}>VIP Clients</h3>
-        <p style={{ margin: '0 0 12px', fontSize: 12, color: '#D9D2BE' }}>Treated as VIP in Email and Clients tabs. Changes apply on next page load.</p>
+        <h3 style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 600, color: '#C19131', textTransform: 'uppercase', letterSpacing: '0.8px' }}>VIP Clients (Manual)</h3>
+        <p style={{ margin: '0 0 12px', fontSize: 12, color: '#D9D2BE' }}>Treated as VIP in Email and Clients tabs. Combined with SharePoint-synced clients below.</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
           {vipContacts.map(name => (
             <div key={name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 10px', background: '#2E3D49', border: '1px solid rgba(217,210,190,0.15)', borderRadius: 7 }}>
@@ -2125,6 +2147,41 @@ function SettingsTab({ connected, onDisconnect, settings, save, loading }: {
           <input value={newContact} onChange={e => setNewContact(e.target.value)} onKeyDown={e => e.key === 'Enter' && addContact()} placeholder="Add client name..." style={{ ...inputStyle, flex: 1 }} />
           <button onClick={addContact} disabled={!newContact.trim()} style={{ ...primaryBtnStyle, opacity: newContact.trim() ? 1 : 0.5 }}>Add</button>
         </div>
+      </Card>
+
+      {/* VIP Clients — SharePoint synced */}
+      <Card>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 6 }}>
+          <h3 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#C19131', textTransform: 'uppercase', letterSpacing: '0.8px' }}>SharePoint Clients (Auto)</h3>
+          <button
+            onClick={triggerVipSync}
+            disabled={syncing}
+            style={{ ...primaryBtnStyle, padding: '6px 12px', fontSize: 12, opacity: syncing ? 0.6 : 1 }}
+          >
+            {syncing ? 'Syncing…' : 'Sync now'}
+          </button>
+        </div>
+        <p style={{ margin: '0 0 12px', fontSize: 12, color: '#D9D2BE' }}>
+          Read-only. Pulled from <code style={{ fontSize: 11, color: '#D9D2BE' }}>quratepty.sharepoint.com/sites/QurateClient</code> + your <code style={{ fontSize: 11, color: '#D9D2BE' }}>1. Own - Engagements</code> OneDrive.
+          {settings.vipCompaniesAutoSyncedAt
+            ? <> Last synced {timeAgo(settings.vipCompaniesAutoSyncedAt)}.</>
+            : <> Never synced.</>}
+        </p>
+        {syncMessage && (
+          <p style={{ margin: '0 0 10px', fontSize: 12, color: syncMessage.startsWith('Sync failed') ? '#C0392B' : '#D9D2BE' }}>{syncMessage}</p>
+        )}
+        {settings.vipCompaniesAuto.length === 0 ? (
+          <p style={{ margin: 0, fontSize: 12, color: 'rgba(217,210,190,0.5)' }}>No SharePoint clients yet. Hit Sync now to fetch them.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {settings.vipCompaniesAuto.map(name => (
+              <div key={name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 10px', background: '#2E3D49', border: '1px solid rgba(217,210,190,0.15)', borderRadius: 7 }}>
+                <span style={{ fontSize: 13, color: '#FFFFFF' }}>{name}</span>
+                <span style={{ fontSize: 10, color: 'rgba(217,210,190,0.5)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>SharePoint</span>
+              </div>
+            ))}
+          </div>
+        )}
       </Card>
 
       {/* Auto-archive Rules */}
@@ -2203,7 +2260,7 @@ export default function Dashboard() {
   const [emailLoading, setEmailLoading] = useState(false)
   const [connected, setConnected] = useState(false)
   const userSettings = useUserSettings()
-  const { settings } = userSettings
+  const { settings, vipCompaniesMerged } = userSettings
 
   // Verify MS token on mount; redirect to login if missing
   useEffect(() => {
@@ -2305,11 +2362,11 @@ export default function Dashboard() {
 
       {/* Scrollable content */}
       <div className="main-content">
-        {tab === 'briefing'  && <BriefingTab events={events} tasks={tasks} emails={emails} vipCompanies={settings.vipCompanies} />}
-        {tab === 'email'     && <EmailTab emails={emails} loading={emailLoading} onRefresh={loadEmails} vipCompanies={settings.vipCompanies} />}
+        {tab === 'briefing'  && <BriefingTab events={events} tasks={tasks} emails={emails} vipCompanies={vipCompaniesMerged} />}
+        {tab === 'email'     && <EmailTab emails={emails} loading={emailLoading} onRefresh={loadEmails} vipCompanies={vipCompaniesMerged} />}
         {tab === 'calendar'  && <CalendarTab events={events} tasks={tasks} />}
         {tab === 'matrix'    && <MatrixTab tasks={tasks} onRefresh={loadTasks} />}
-        {tab === 'clients'   && <ClientsTab emails={emails} tasks={tasks} vipCompanies={settings.vipCompanies} />}
+        {tab === 'clients'   && <ClientsTab emails={emails} tasks={tasks} vipCompanies={vipCompaniesMerged} />}
         {tab === 'chat'      && <ChatTab />}
         {tab === 'settings'  && <SettingsTab connected={connected} onDisconnect={() => { setConnected(false); window.location.href = '/api/auth/logout' }} settings={userSettings.settings} save={userSettings.save} loading={userSettings.loading} />}
       </div>

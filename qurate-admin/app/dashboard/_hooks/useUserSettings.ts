@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
 export type Settings = {
@@ -8,7 +8,9 @@ export type Settings = {
   focusStart: string
   focusEnd: string
   timezone: string
-  vipCompanies: string[]
+  vipCompanies: string[]      // manual list, user-editable
+  vipCompaniesAuto: string[]  // synced from SharePoint by sync-vips Edge Function (read-only here)
+  vipCompaniesAutoSyncedAt: string | null
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -17,6 +19,8 @@ export const DEFAULT_SETTINGS: Settings = {
   focusEnd: '12:00',
   timezone: 'Australia/Sydney',
   vipCompanies: ['Think Water', 'Land of Plenty', 'Therefore', 'Providence', 'Armillary', 'Alstonville'],
+  vipCompaniesAuto: [],
+  vipCompaniesAutoSyncedAt: null,
 }
 
 const DB_KEY: Record<keyof Settings, string> = {
@@ -25,6 +29,8 @@ const DB_KEY: Record<keyof Settings, string> = {
   focusEnd: 'focus_end',
   timezone: 'timezone',
   vipCompanies: 'vip_companies',
+  vipCompaniesAuto: 'vip_companies_auto',
+  vipCompaniesAutoSyncedAt: 'vip_companies_auto_synced_at',
 }
 
 const LEGACY_LS_KEY: Partial<Record<keyof Settings, string>> = {
@@ -109,8 +115,15 @@ export function useUserSettings() {
   }, [])
 
   const save = useCallback(async (patch: Partial<Settings>) => {
-    setSettings(prev => ({ ...prev, ...patch }))
-    const rows = (Object.entries(patch) as Array<[keyof Settings, unknown]>).map(([k, v]) => ({
+    // Refuse to save auto-managed keys via the user-facing save() — those are populated
+    // server-side by the sync-vips Edge Function only.
+    const filtered = Object.fromEntries(
+      Object.entries(patch).filter(([k]) => k !== 'vipCompaniesAuto' && k !== 'vipCompaniesAutoSyncedAt')
+    ) as Partial<Settings>
+    if (Object.keys(filtered).length === 0) return
+
+    setSettings(prev => ({ ...prev, ...filtered }))
+    const rows = (Object.entries(filtered) as Array<[keyof Settings, unknown]>).map(([k, v]) => ({
       key: DB_KEY[k],
       value: v,
       updated_at: new Date().toISOString(),
@@ -119,5 +132,19 @@ export function useUserSettings() {
     if (error) console.error('useUserSettings save:', error)
   }, [])
 
-  return { settings, save, loading }
+  // Effective VIP list = manual ∪ synced (deduped, case-insensitive). This is what every
+  // VIP-aware consumer in the dashboard should read.
+  const vipCompaniesMerged = useMemo(() => {
+    const seen = new Set<string>()
+    const out: string[] = []
+    for (const name of [...settings.vipCompanies, ...settings.vipCompaniesAuto]) {
+      const k = name.toLowerCase()
+      if (seen.has(k)) continue
+      seen.add(k)
+      out.push(name)
+    }
+    return out
+  }, [settings.vipCompanies, settings.vipCompaniesAuto])
+
+  return { settings, save, loading, vipCompaniesMerged }
 }
