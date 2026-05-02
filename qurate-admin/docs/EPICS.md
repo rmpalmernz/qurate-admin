@@ -55,7 +55,9 @@ Critical path to "scheduled email brief in production": **Epic 0 → Epic 4 → 
 
 ---
 
-## Epic 2 — Schedule the daily brief + email delivery
+## Epic 2 — Schedule the daily brief + email delivery ✅ shipped 2026-05-02
+
+> Implementation is in `supabase/functions/send-brief/index.ts` + pg_cron `send-brief-daily`. See `docs/CHANGELOG.md` for the operational record.
 
 **Why:** `daily-brief` already exists and works (the Gate 5 prompt is sophisticated). Two things are missing: (a) it's only triggered by the dashboard, never on a schedule; (b) it stores the brief but never delivers it.
 

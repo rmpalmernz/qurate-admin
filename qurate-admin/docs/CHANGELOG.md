@@ -4,6 +4,28 @@ Records non-code changes made directly to the live Supabase project (`btzlkiwmde
 
 ---
 
+## 2026-05-02 — Epic 2: scheduled email brief
+
+**What:** New `send-brief` Edge Function (v1) plus pg_cron `send-brief-daily` (`30 20 * * 1-5`, weekdays at 06:30 AEST / 07:30 AEDT). Pipeline:
+
+1. Calls existing `daily-brief` Edge Function (returns cached or generates fresh).
+2. Skip if `ai_daily_briefs.sent_at` is already set for today (override with `{force:true}`).
+3. Gets MS Graph access token via `ms-auth` (Vault-stored refresh token).
+4. Looks up user email via `/me`.
+5. Renders the brief markdown to HTML with `marked@13`.
+6. Posts to Graph `/me/sendMail` with high importance + saved to Sent Items.
+7. Updates `ai_daily_briefs.sent_at`.
+
+Migration `ai_daily_briefs_sent_at` adds the new `sent_at timestamptz` column.
+
+**Required to make the cron functional end-to-end:**
+- The user must be re-logged into Microsoft (refresh token in Vault). Otherwise step 3 fails with "Not connected to Microsoft".
+- `LOVABLE_API_KEY` env var must be set in Supabase Edge Functions secrets (Dashboard → Project Settings → Edge Functions → Secrets). As of this commit it's unset, which is why a manual smoke test of `send-brief` returns: `daily-brief 500: LOVABLE_API_KEY is not configured`.
+
+**Verified:** Function deploys and is reachable; smoke test returns the expected error from the missing AI key, proving the wiring is correct end-to-end.
+
+---
+
 ## 2026-05-02 — Microsoft OAuth refresh token moved to Vault
 
 **Why:** The previous design persisted both the refresh token and the access token in plaintext in `public.microsoft_oauth_tokens`. A database leak or an over-permissive RLS change would have handed an attacker bearer credentials. Moving to Vault encrypts the refresh token at rest and removes access-token storage entirely.
