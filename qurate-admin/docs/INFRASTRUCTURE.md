@@ -85,6 +85,34 @@ const { data: existingTasks } = await sb
 ```
 The unique partial index `ux_eisenhower_tasks_source_email_id` is now also in place as a defence-in-depth — even if the application-layer dedup misses something, the database will reject the duplicate INSERT.
 
+### Inspecting cron runs
+
+`cron.job_run_details` is restricted on hosted Supabase but readable via SQL editor. Quickest health check:
+
+```sql
+-- Last 5 runs of each active cron, with status + duration
+SELECT j.jobname, r.status, r.start_time, r.end_time,
+       extract(epoch from (r.end_time - r.start_time)) AS seconds,
+       left(coalesce(r.return_message, ''), 80) AS msg
+FROM cron.job j
+JOIN cron.job_run_details r ON r.jobid = j.jobid
+WHERE j.active
+ORDER BY r.start_time DESC
+LIMIT 20;
+```
+
+Things to watch for:
+- `morning-brief-daily`: should appear at ~20:30 UTC weekdays, status `succeeded`. If status `failed` or `morning-brief` itself returned 500, you'll also receive a failure-alert email (see `supabase/functions/morning-brief/index.ts` `notifyFailure`).
+- `sync-outlook-matrix`: ~96 runs/day. Expected to succeed silently. Failures don't email — check this query.
+- `sync-vips-daily`: 1 run/day at 19:00 UTC.
+
+### Health endpoint
+
+`GET /api/health` (Next.js) returns JSON with each check + overall status. Returns HTTP 503 if anything's degraded so any uptime monitor (UptimeRobot / BetterStack / Cron-job.org) treats it as down. Checks:
+- Supabase reachable
+- Today's brief row exists in `ai_daily_briefs`
+- Brief was emailed (only flagged after 07:00 AEST on weekdays)
+
 ---
 
 ## Tables (21 in `public` schema)

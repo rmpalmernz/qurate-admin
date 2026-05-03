@@ -138,11 +138,20 @@ Unchanged from v1. ~2,300-line `app/dashboard/page.tsx` → split each tab into 
 
 ---
 
-## Epic 6 — Quality & observability (carry forward)
+## Epic 6 — Quality & observability 🟡 partial 2026-05-03
 
-Unchanged from v1. Playwright smoke tests, Sentry, `/api/health`, structured Edge Function logs. Becomes critical once Epic 0 is fixed and Epic 2 ships scheduled briefs (silent failures = Richard doesn't get his brief and doesn't know).
+**Landed:**
+- `morning-brief` failure-alert email (silent failures are now loud). Wraps the main catch block, sends a red-themed HTML email to the user via Graph. Inner try/catch so a broken alert can never mask the original error.
+- `/api/health` Next.js route — JSON status of Supabase + today's brief + brief email delivery. HTTP 503 when degraded, suitable for any external uptime monitor.
+- `INFRASTRUCTURE.md` cron-runs audit query (`cron.job_run_details`).
 
-**Estimate:** 1–2 sessions.
+**Still open:**
+- Sentry wiring — user has account, DSN to be added later.
+- Playwright smoke tests — happy-path tests for dashboard tabs, deferred until decomposition (Epic 5).
+- `ms-outlook-folders` failure alerts — runs every 15 min, would need rate-limiting before adding.
+- Structured Edge Function logs — `console.log` is fine until volume grows.
+
+**Estimate (remaining):** 1 session for Sentry + Playwright once DSN is to hand.
 
 ---
 

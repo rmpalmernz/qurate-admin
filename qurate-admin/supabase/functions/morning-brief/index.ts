@@ -568,6 +568,28 @@ async function sendMail(accessToken: string, to: string, subject: string, html: 
   if (!res.ok) throw new Error(`sendMail ${res.status}: ${await res.text()}`)
 }
 
+// Best-effort failure alert: emails the user when the brief generation path fails.
+// Runs inside its own try/catch so a broken alert path can never mask the original error.
+async function notifyFailure(err: string, where: string): Promise<void> {
+  try {
+    const accessToken = await getMsAccessToken()
+    const userEmail = await getUserEmail(accessToken)
+    const subject = `⚠️ morning-brief failed — ${todayAESTISO()}`
+    const html = `<!doctype html><html><body style="font-family:-apple-system,sans-serif;max-width:640px;margin:0 auto;padding:24px;color:#1f2937">
+<h2 style="color:#b91c1c;border-bottom:2px solid #b91c1c;padding-bottom:8px">morning-brief failed</h2>
+<p><strong>When:</strong> ${new Date().toISOString()}</p>
+<p><strong>Where:</strong> ${where}</p>
+<p><strong>Error:</strong></p>
+<pre style="background:#fee2e2;padding:12px;border-radius:4px;white-space:pre-wrap;word-break:break-word;font-size:13px">${err}</pre>
+<p style="color:#475569;font-size:13px">Check Supabase Edge Function logs (<code>morning-brief</code>) for the full stack trace and request id.</p>
+</body></html>`
+    await sendMail(accessToken, userEmail, subject, html)
+  } catch (alertErr) {
+    const m = alertErr instanceof Error ? alertErr.message : String(alertErr)
+    console.error("morning-brief failure-alert ALSO failed:", m)
+  }
+}
+
 function htmlEnvelope(innerHtml: string): string {
   return `<!doctype html><html><head><meta charset="utf-8"><style>
   body { font-family: -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif; max-width: 680px; margin: 0 auto; padding: 24px; line-height: 1.55; color: #1f2937; }
@@ -711,6 +733,7 @@ Deno.serve(async (req: Request) => {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error("morning-brief error:", msg)
+    await notifyFailure(msg, "main handler")
     return jsonResponse({ error: msg }, 500)
   }
 })
