@@ -4,6 +4,27 @@ Records non-code changes made directly to the live Supabase project (`btzlkiwmde
 
 ---
 
+## 2026-05-03 — Brief consolidation + Lovable kill
+
+**Why:** Three overlapping brief paths (`daily-brief`, `chat` brief mode, `send-brief`) wrote to the same `ai_daily_briefs` table from different prompts and models. The email path was broken because `daily-brief` (Lovable Gemini) had no API key set. User wants Claude across the board.
+
+**Architecture change:**
+- New `morning-brief` Edge Function — single source of truth for brief generation, persistence, and email delivery. Body: `{force?, send?, context?}`. Calls Anthropic Claude Sonnet 4.5. Cron path fetches today's calendar from Graph for richer context. Source in `supabase/functions/morning-brief/`.
+- pg_cron `send-brief-daily` unscheduled. New `morning-brief-daily` (`30 20 * * 1-5`) calls morning-brief with `{"send": true}`.
+- Dashboard `BriefingTab` now POSTs to `/morning-brief` (was `/chat`).
+- `chat` Edge Function refactored — brief mode removed, now a pure conversational assistant (still Claude Sonnet 4.5, still uses CRM + EA context).
+- `ms-outlook-folders` migrated from Lovable Gemini to Claude Haiku 4.5 (cost log entries updated).
+- `daily-brief` and `send-brief` overwritten with 410 Gone stubs. Safe to delete from Supabase once unused for >7 days.
+- `LOVABLE_API_KEY` env var no longer referenced by any deployed code.
+
+**First live morning-brief test:** generated a 3,100-char brief with Sonnet 4.5 using 3 calendar events + 15 Q1 tasks + 13 Q2 tasks + 1 Q3 task + 0 follow-ups. Email arrived in `richard.palmer@qurate.com.au` at `2026-05-03T00:26:40Z`.
+
+**Cost model:**
+- morning-brief / chat / draft-reply: Claude Sonnet 4.5 — $3 in / $15 out per MTok
+- ms-outlook-folders: Claude Haiku 4.5 — $1 in / $5 out per MTok
+
+---
+
 ## 2026-05-02 — Epic 2: scheduled email brief
 
 **What:** New `send-brief` Edge Function (v1) plus pg_cron `send-brief-daily` (`30 20 * * 1-5`, weekdays at 06:30 AEST / 07:30 AEDT). Pipeline:

@@ -55,9 +55,9 @@ Critical path to "scheduled email brief in production": **Epic 0 → Epic 4 → 
 
 ---
 
-## Epic 2 — Schedule the daily brief + email delivery ✅ shipped 2026-05-02
+## Epic 2 — Daily brief, generated and emailed by Claude ✅ shipped 2026-05-03
 
-> Implementation is in `supabase/functions/send-brief/index.ts` + pg_cron `send-brief-daily`. See `docs/CHANGELOG.md` for the operational record.
+> Single Edge Function `morning-brief` (Claude Sonnet 4.5) owns the whole pipeline: pulls EA + CRM + calendar data, generates the brief, persists to `ai_daily_briefs`, optionally renders to HTML and emails via Graph. pg_cron `morning-brief-daily` fires weekday mornings at 06:30 AEST. See `docs/CHANGELOG.md` (2026-05-03 entry) for the consolidation story and `supabase/functions/morning-brief/index.ts` for the source.
 
 **Why:** `daily-brief` already exists and works (the Gate 5 prompt is sophisticated). Two things are missing: (a) it's only triggered by the dashboard, never on a schedule; (b) it stores the brief but never delivers it.
 
