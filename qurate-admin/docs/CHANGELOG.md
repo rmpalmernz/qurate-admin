@@ -4,6 +4,22 @@ Records non-code changes made directly to the live Supabase project (`btzlkiwmde
 
 ---
 
+## 2026-05-03 — Epic 6 (partial): observability — cron failure alerts + /api/health
+
+**Why:** With Epic 0 + 2 + 4 in production and an unattended cron driving the daily brief, silent failures became the highest-leverage risk. Richard wakes up, no email, no signal anything is wrong.
+
+**Landed in this PR:**
+- `morning-brief` `notifyFailure(err, where)` helper. Best-effort path: Graph token → user email → red-themed HTML email with timestamp + error + stack hint. Wraps the main handler's catch block so any error during brief generation, persistence, or email delivery emits a loud failure email. Inner try ensures a broken alert path can never mask the original error.
+- `/api/health` Next.js route. GET returns `{ status, timestamp, today_aest, checks }`. Checks: Supabase reachable, today's brief row exists, brief emailed (only flagged degraded after 07:00 AEST on weekdays). Returns HTTP 503 on degraded so external uptime monitors treat as down.
+- `INFRASTRUCTURE.md` updated with cron-runs SQL audit query and health-endpoint reference.
+
+**Deferred to a follow-up Epic 6 PR:**
+- Sentry wiring — needs DSN.
+- Playwright smoke tests — high setup cost, lower marginal value.
+- ms-outlook-folders failure alerts — runs every 15 min, would be too noisy without rate-limiting; revisit if the SQL audit query shows ongoing failures.
+
+---
+
 ## 2026-05-03 — Epic 0 closed: cron resumed
 
 After the morning-brief consolidation landed, the only remaining Epic 0 task was unpausing `sync-outlook-matrix`. Pre-flight verification:
