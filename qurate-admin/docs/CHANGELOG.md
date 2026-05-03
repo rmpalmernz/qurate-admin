@@ -4,6 +4,22 @@ Records non-code changes made directly to the live Supabase project (`btzlkiwmde
 
 ---
 
+## 2026-05-03 — Epic 1 (partial): dashboard reads email_processing_history; Epic 6 closed (Sentry wired)
+
+**Epic 1 — data wiring landed:**
+- Dashboard `loadEmails()` now enriches the Graph fetch with a Supabase JOIN against `email_processing_history` keyed by `email_id` = Graph message id. Maps DB `ai_category` (`do|plan|delegate|eliminate`) onto dashboard `Email.ai_quadrant` (`do|schedule|delegate|eliminate`) with `plan → schedule`. Passes `ai_client_name` through. The existing `emailToQuadrant()` and `emailCategory()` helpers consume these naturally — no UI work required.
+- Briefing tab now shows a tiny footer: `N of M emails AI-classified · K heuristic` so the user can see classification coverage.
+- Defensive: enrichment failures (RLS, network, timeout) silently fall through to heuristic — no user-visible regression. With `email_processing_history` currently at 22 rows, most of the inbox still uses heuristic; coverage grows as the n8n classifier feeds more rows.
+
+**Epic 1 — deferred to a follow-up PR after external UX/UI design process:**
+- New tabs/sidebar: Follow-ups, Decisions, Rocks, Annual goals (data is live but new UI surfaces should match the design refresh)
+- Tasks tab `quadrant_override` toggle
+- Calendar tab cache from `calendar_events` (table empty; needs `ms-calendar` cron wiring)
+
+**Epic 6 — closed:** `@sentry/nextjs` v10.51 wired across browser, server, and edge runtimes. Init configs gated on `NEXT_PUBLIC_SENTRY_DSN` (graceful no-op if missing). Tunnel route at `/monitoring` to bypass ad-blockers. **User must add `NEXT_PUBLIC_SENTRY_DSN` to Vercel env vars (all 3 environments) for production capture.**
+
+---
+
 ## 2026-05-03 — Epic 6 (partial): observability — cron failure alerts + /api/health
 
 **Why:** With Epic 0 + 2 + 4 in production and an unattended cron driving the daily brief, silent failures became the highest-leverage risk. Richard wakes up, no email, no signal anything is wrong.
