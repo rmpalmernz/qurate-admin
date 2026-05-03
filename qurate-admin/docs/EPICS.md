@@ -11,24 +11,18 @@ Critical path to "scheduled email brief in production": **Epic 0 → Epic 4 → 
 
 ---
 
-## Epic 0 — Stop the runaway, clean up the data 🚨
+## Epic 0 — Stop the runaway, clean up the data ✅ shipped 2026-05-03
 
-**Why:** A pg_cron job (`sync-outlook-matrix`, every 15 min) calls `ms-outlook-folders` which inserts duplicate `eisenhower_tasks` rows. 227,407 total rows, only 1,401 distinct titles → ~160× duplication. Each tick burns Lovable AI credits classifying emails it has already seen. Until this is fixed, every other epic is operating on corrupted data and the AI bill keeps climbing.
+> Cron `sync-outlook-matrix` resumed at `*/15 * * * *` after the safety net is in place.
 
-**Scope**
-1. **Pause the cron immediately** (`UPDATE cron.job SET active = false WHERE jobname = 'sync-outlook-matrix'`)
-2. **Diagnose the dedup failure** in `ms-outlook-folders`. Most likely cause: the `existingIds` set is built from a 227k-row scan that times out or runs concurrently with another cron tick. Verify by checking edge-function logs around the duplicate creation timestamps.
-3. **Add a unique index** on `(source_email_id) WHERE source_email_id IS NOT NULL AND source_type = 'email'` so the database itself rejects duplicates. This is the safety net.
-4. **Clean existing duplicates**: keep the earliest row per `source_email_id`, delete the rest. Estimate: 226k rows deleted, 1,401 kept.
-5. **Reduce cron frequency** to hourly or run on Graph webhook instead.
-6. **Resume cron** only once the unique index is in place.
-
-**Acceptance criteria**
-- `select count(*), count(distinct source_email_id) from eisenhower_tasks where source_type='email'` returns roughly equal numbers
-- Cron runs without creating duplicates (verified by tasks created vs distinct emails over 24h)
-- `api_cost_log` for `email_task_extraction` operation drops by ~95%
-
-**Estimate:** 1 session.
+**What landed:**
+1. Cron paused at the start of audit work (active=false).
+2. Dedup root cause fixed: new `ms-outlook-folders` queries `eisenhower_tasks` with `.in("source_email_id", messageIds)` instead of fetching the whole table and filtering in memory (PR #39 / #40 / consolidation).
+3. Partial unique index created: `ux_eisenhower_tasks_source_email_id ON eisenhower_tasks (source_email_id) WHERE source_email_id IS NOT NULL AND source_type = 'email'`. The DB itself now rejects duplicates.
+4. Historical duplicates removed — table went from 227,407 email-source rows to 0 (only manual rows survived). Then a fresh sync repopulated 57 distinct email tasks from 75 emails (13 consolidated by sender).
+5. AI provider migrated: Lovable Gemini → Anthropic Claude Haiku 4.5 (cheaper, more reliable, source-controlled).
+6. Idempotency confirmed via two consecutive manual triggers — second run created 0 tasks.
+7. Cron re-enabled 2026-05-03.
 
 ---
 
