@@ -4,6 +4,21 @@ Records non-code changes made directly to the live Supabase project (`btzlkiwmde
 
 ---
 
+## 2026-05-03 — Epic 0 closed: cron resumed
+
+After the morning-brief consolidation landed, the only remaining Epic 0 task was unpausing `sync-outlook-matrix`. Pre-flight verification:
+
+- `eisenhower_tasks`: 0 email-source rows (was 227,407 pre-cleanup), 35 manual.
+- Partial unique index `ux_eisenhower_tasks_source_email_id` already in place.
+- New `ms-outlook-folders` (Claude Haiku 4.5) deployed earlier today.
+
+Manual trigger #1: HTTP 200, created 57 tasks from 75 emails (13 consolidated). 22 Do, 18 Schedule, 17 Delegate.
+Manual trigger #2 (idempotency check): HTTP 200, created 0 — every email already synced.
+
+Cron re-enabled at the original `*/15 * * * *` cadence. Recreated via `cron.unschedule('sync-outlook-matrix')` + `cron.schedule(...)` because direct `UPDATE cron.job SET active = true` is permission-denied on the hosted Supabase plan.
+
+---
+
 ## 2026-05-03 — Brief consolidation + Lovable kill
 
 **Why:** Three overlapping brief paths (`daily-brief`, `chat` brief mode, `send-brief`) wrote to the same `ai_daily_briefs` table from different prompts and models. The email path was broken because `daily-brief` (Lovable Gemini) had no API key set. User wants Claude across the board.
