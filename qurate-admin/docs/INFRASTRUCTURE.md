@@ -16,25 +16,28 @@ There are two other projects under the same org (`qurate-qvos-main`, `alstonvill
 
 ---
 
-## Edge Functions (14)
+## Edge Functions (15 — 2 deprecated stubs, 13 active)
+
+All AI calls are now Anthropic Claude only. Lovable AI Gateway is fully removed.
 
 | Slug | verify_jwt | Triggered by | Notes |
 |---|---|---|---|
 | `ms-auth` | no | dashboard, other Edge Functions | OAuth orchestration. Refresh token stored encrypted in **Supabase Vault** (`microsoft_refresh_token` secret). **Access tokens are NEVER persisted** — every default invocation refreshes from Vault and returns a fresh access token to the caller. **Source in `supabase/functions/ms-auth/`.** Scopes: Calendars.Read, Mail.ReadWrite, Sites.Read.All, Files.Read.All, offline_access |
 | `ms-calendar` | no | (no callers found) | Pulls Graph calendarview, upserts `calendar_events` |
-| `ms-outlook-folders` | no | **pg_cron `sync-outlook-matrix` (every 15 min)**, dashboard | Reads 4 mapped Outlook folders → AI-extracts tasks → inserts into `eisenhower_tasks`. **Cron paused — see below.** |
+| `ms-outlook-folders` | no | **pg_cron `sync-outlook-matrix` (every 15 min)**, manual | Reads 4 mapped Outlook folders → AI-extracts tasks (Claude Haiku 4.5) → inserts into `eisenhower_tasks`. **Cron paused — see below.** **Source in `supabase/functions/ms-outlook-folders/`.** |
 | `delete-outlook-email` | no | dashboard | Deletes a Graph message |
 | `fetch-email` | no | dashboard | Fetches one Graph message by id |
 | `reimport-emails` | no | manual | Re-classification pass |
-| `daily-brief` | no | dashboard | "Gate 5 v2" brief generator. Reads 12 tables, calls Lovable AI Gateway (gemini-2.5-flash), upserts `ai_daily_briefs` |
-| `chat` | yes | dashboard | Chat assistant |
-| `draft-reply` | yes | dashboard | AI email reply generation |
+| `chat` | yes | dashboard | Conversational EA assistant. Claude Sonnet 4.5. Brief generation moved to morning-brief. **Source in `supabase/functions/chat/`.** |
+| `draft-reply` | yes | dashboard | AI email reply generation. Claude Sonnet 4.5. |
 | `improve-prompt` | no | manual | Iterates on a prompt |
 | `active-prompt` | no | unknown | Returns active prompt from `ai_prompts` |
 | `sender-history` | no | unknown | Sender history lookup |
 | `follow-ups` | no | unknown | Populates `follow_ups` table |
 | `sync-vips` | no | **pg_cron `sync-vips-daily` (19:00 UTC daily)**, Settings tab "Sync now" button | Reads SharePoint `quratepty.sharepoint.com/sites/QurateClient/02. Work in Progress + 01. Archive` and personal OneDrive `1. Own - Engagements`. Extracts company names, dedupes, writes `user_preferences.vip_companies_auto`. **Source in `supabase/functions/sync-vips/`.** |
-| `send-brief` | no | **pg_cron `send-brief-daily` (20:30 UTC weekdays = 06:30 AEST / 07:30 AEDT)**, future "Send now" UI | Calls `daily-brief` for today's brief, renders markdown → HTML, sends via Graph `/me/sendMail` to the authenticated user's inbox, marks `ai_daily_briefs.sent_at`. Idempotent: skips if already sent today (override with `{force:true}`). **Source in `supabase/functions/send-brief/`.** |
+| `morning-brief` | no | **pg_cron `morning-brief-daily` (20:30 UTC weekdays = 06:30 AEST)**, dashboard BriefingTab | Single source of truth for the daily brief. Body `{force?, send?, context?}`. Generates via Claude Sonnet 4.5, fetches today's calendar from Graph (cron path), persists to `ai_daily_briefs`, optionally renders markdown→HTML and emails via Graph `/me/sendMail`. **Source in `supabase/functions/morning-brief/`.** |
+| `daily-brief` | no | none | **DEPRECATED 2026-05-03.** 410 stub — body of original Lovable Gemini implementation removed. Replaced by `morning-brief`. Safe to delete from Supabase once unused for >7 days. |
+| `send-brief` | no | none | **DEPRECATED 2026-05-03.** 410 stub. Replaced by `morning-brief` with `{send:true}`. Safe to delete from Supabase once unused for >7 days. |
 
 ### Folder-to-quadrant mapping (used by `ms-outlook-folders`)
 
@@ -55,7 +58,7 @@ These are Outlook subfolders under Inbox. Names are sensitive to whitespace — 
 |---|---|---|---|
 | `sync-outlook-matrix` | `*/15 * * * *` (every 15 min) | **paused 2026-05-02** | `ms-outlook-folders` |
 | `sync-vips-daily` | `0 19 * * *` (19:00 UTC = 06:00 AEDT) | active | `sync-vips` |
-| `send-brief-daily` | `30 20 * * 1-5` (20:30 UTC weekdays = 06:30 AEST / 07:30 AEDT) | active | `send-brief` |
+| `morning-brief-daily` | `30 20 * * 1-5` (20:30 UTC weekdays = 06:30 AEST / 07:30 AEDT) | active | `morning-brief` with body `{"send":true}` |
 
 Paused via `cron.alter_job(..., active := false)` after producing 225,350 duplicate `eisenhower_tasks` rows. **Do not resume** until the dedup bug in `ms-outlook-folders` is fixed (see below) — without that fix, every cron tick will now fail with unique-index violations rather than duplicating, but it'll still burn Lovable AI calls before hitting the constraint.
 
@@ -102,7 +105,13 @@ See `docs/BRD.md` §3 for the table-by-table breakdown. Highlights:
 Required:
 - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` — auto-injected
 - `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` — Microsoft OAuth
-- `LOVABLE_API_KEY` — Lovable AI Gateway (used by `daily-brief`, `ms-outlook-folders`). **NB: as of 2026-05-02 this appears to be unset — `daily-brief` returns "LOVABLE_API_KEY is not configured" and therefore `send-brief` cannot generate fresh briefs. Set this in Supabase Dashboard → Project Settings → Edge Functions → Secrets to unblock the cron.**
+- `ANTHROPIC_API_KEY` — Claude API. Used by `morning-brief`, `chat`, `draft-reply`, `ms-outlook-folders`.
+
+Optional:
+- `CRM_SUPABASE_URL`, `CRM_SUPABASE_ANON_KEY` — second Supabase project for CRM data (clients, deals, revenue). When set, `morning-brief` and `chat` enrich responses with this data.
+
+Deprecated (safe to remove from Supabase secrets):
+- `LOVABLE_API_KEY` — no remaining code references. Removed from `daily-brief`, `ms-outlook-folders` on 2026-05-03.
 
 ---
 

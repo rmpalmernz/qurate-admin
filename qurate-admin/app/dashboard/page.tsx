@@ -221,100 +221,45 @@ function BriefingTab({ events, tasks, emails, vipCompanies }: { events: Calendar
       const today = new Date()
       const todayKey = localDateKey(today)
 
-      const todayEvts = events
+      // Build a context object matching the FrontendContext shape morning-brief expects.
+      const todayEvents = events
         .filter(e => (e.start?.dateTime || e.start?.date) && localDateKey(evtStart(e)) === todayKey)
         .sort((a, b) => evtStart(a).getTime() - evtStart(b).getTime())
+        .map(e => ({
+          subject: e.subject,
+          start: e.start,
+          location: e.location ? { displayName: e.location.displayName } : undefined,
+          organizer: e.organizer?.emailAddress?.name
+            ? { emailAddress: { name: e.organizer.emailAddress.name } }
+            : undefined,
+        }))
 
       const q1Tasks = tasks.filter(t => t.quadrant === 'do' && t.status !== 'done' && t.status !== 'cancelled')
       const q2Tasks = tasks.filter(t => t.quadrant === 'schedule' && t.status !== 'done' && t.status !== 'cancelled')
       const urgentEmails = emails.filter(e => emailToQuadrant(e) === 'do' && !e.isRead)
-      const vipEmails = emails.filter(e => emailCategory(e, vipCompanies) === 'vip' && !e.isRead)
 
-      const calendarSection = todayEvts.length > 0
-        ? todayEvts.map(e => {
-            const time = (e.isAllDay || !e.start?.dateTime) ? 'All day' : fmt(e.start.dateTime!)
-            const loc = e.location?.displayName ? ` @ ${e.location.displayName}` : ''
-            const with_ = e.organizer?.emailAddress?.name ? ` with ${e.organizer.emailAddress.name}` : ''
-            return `  - ${time}: ${e.subject}${loc}${with_}`
-          }).join('\n')
-        : '  - No meetings today'
+      const context = {
+        todayEvents,
+        unreadCount: emails.filter(e => !e.isRead).length,
+        q1Emails: urgentEmails.slice(0, 10).map(e => ({ subject: e.subject, from: e.from?.name || e.from?.address })),
+        vipContacts: vipCompanies,
+        tasks: {
+          q1: q1Tasks.slice(0, 15).map(t => ({ title: t.title, client_name: t.client_name, due_date: t.due_date, estimated_minutes: t.estimated_minutes })),
+          q2: q2Tasks.slice(0, 10).map(t => ({ title: t.title, client_name: t.client_name, estimated_minutes: t.estimated_minutes })),
+        },
+      }
 
-      const q1Section = q1Tasks.length > 0
-        ? q1Tasks.slice(0, 8).map(t => {
-            const client = t.client_name ? ` [${t.client_name}]` : ''
-            const due = t.due_date ? ` (due ${fmtDate(t.due_date)})` : ''
-            return `  - ${t.title}${client}${due}`
-          }).join('\n')
-        : '  - No urgent Q1 tasks'
-
-      const q2Section = q2Tasks.length > 0
-        ? q2Tasks.slice(0, 5).map(t => {
-            const client = t.client_name ? ` [${t.client_name}]` : ''
-            const mins = t.estimated_minutes ? ` (~${t.estimated_minutes}m)` : ''
-            return `  - ${t.title}${client}${mins}`
-          }).join('\n')
-        : '  - No Q2 tasks scheduled'
-
-      const emailSection = [
-        urgentEmails.length > 0
-          ? `Urgent (Q1) unread: ${urgentEmails.slice(0, 5).map(e => `"${e.subject}" from ${e.from?.name || e.from?.address}`).join('; ')}`
-          : null,
-        vipEmails.length > 0
-          ? `VIP client unread: ${vipEmails.slice(0, 5).map(e => `"${e.subject}" from ${e.from?.name || e.from?.address}`).join('; ')}`
-          : null,
-        `Total unread: ${emails.filter(e => !e.isRead).length}`,
-      ].filter(Boolean).join('\n  ')
-
-      const dateStr = today.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-
-      const message = `Generate a concise, actionable morning briefing for Richard for ${dateStr}.
-
-Here is today's real data:
-
-CALENDAR (today's meetings):
-${calendarSection}
-
-Q1 TASKS (urgent & important — must act today):
-${q1Section}
-
-Q2 TASKS (important, schedule for focus blocks):
-${q2Section}
-
-EMAIL SUMMARY:
-  ${emailSection}
-
-Write a crisp executive briefing (3-5 short paragraphs) that:
-1. Opens with a one-line summary of the day
-2. Highlights the most critical calendar commitments
-3. Calls out the top 2-3 Q1 tasks to tackle first
-4. Notes any urgent emails needing a response
-5. Recommends when to block time for Q2 deep work
-Keep the tone professional and direct. Use markdown formatting.`
-
-      const res = await authFetch(`${SUPABASE_FUNCTIONS_URL}/chat`, {
+      const res = await authFetch(`${SUPABASE_FUNCTIONS_URL}/morning-brief`, {
         method: 'POST',
-        body: JSON.stringify({ message, messages: [{ role: 'user', content: message }] }),
+        body: JSON.stringify({ force: true, context }),
       })
       const data = await res.json()
-      if (!res.ok) {
-        throw new Error(data?.error || data?.message || `HTTP ${res.status}`)
-      }
-      const briefText = data.response || data.message || ''
-      if (!briefText) {
-        throw new Error(`Unexpected response shape: ${JSON.stringify(data)}`)
-      }
+      if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`)
+      const briefText = data.brief || ''
+      if (!briefText) throw new Error(`Unexpected response shape: ${JSON.stringify(data)}`)
 
       setBrief(briefText)
-
-      await fetch(`${SUPABASE_URL}/rest/v1/ai_daily_briefs`, {
-        method: 'POST',
-        headers: {
-          apikey: ANON_KEY,
-          'Content-Type': 'application/json',
-          Prefer: 'return=minimal',
-        },
-        body: JSON.stringify({ brief_text: briefText }),
-      })
+      // morning-brief persists the row itself; no separate write needed.
     } catch (err) {
       console.error('Brief generation failed:', err)
       setBrief('Error generating brief — please try again.')
