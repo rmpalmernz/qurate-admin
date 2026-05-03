@@ -504,6 +504,11 @@ function BriefingTab({ events, tasks, emails, vipCompanies }: { events: Calendar
             <p style={{ color: `${BEIGE}80`, fontSize: 13, margin: 0, fontWeight: 300 }}>Click Generate Brief to create your morning briefing.</p>
           </div>
         )}
+        {emails.length > 0 && (
+          <p style={{ color: `${BEIGE}99`, fontSize: 11, margin: '16px 0 0', fontWeight: 300, letterSpacing: 0.3 }}>
+            {emails.filter(e => e.ai_quadrant).length} of {emails.length} emails AI-classified · {emails.filter(e => !e.ai_quadrant).length} heuristic
+          </p>
+        )}
       </div>
     </div>
   )
@@ -2222,7 +2227,43 @@ export default function Dashboard() {
       if (!token) { setEmailLoading(false); return }
       const r = await fetch('https://graph.microsoft.com/v1.0/me/messages?$top=50&$orderby=receivedDateTime desc&$select=id,subject,from,receivedDateTime,bodyPreview,isRead', { headers: { Authorization: `Bearer ${token}` } })
       const data = await r.json()
-      if (data.value) setEmails(data.value.filter((e: Email) => e.from && e.id && e.receivedDateTime))
+      const emails: Email[] = (data.value || []).filter((e: Email) => e.from && e.id && e.receivedDateTime)
+
+      // Enrich with email_processing_history (back-of-house AI classification).
+      // The DB uses ai_category values 'do | plan | delegate | eliminate'; the dashboard's
+      // ai_quadrant uses 'do | schedule | delegate | eliminate'. Map plan → schedule.
+      // If this enrich fails, we silently fall through to heuristic categorisation — no regression.
+      if (emails.length > 0) {
+        try {
+          const ids = emails.map(e => `"${e.id}"`).join(',')
+          const enrichRes = await fetch(
+            `${SUPABASE_URL}/rest/v1/email_processing_history?select=email_id,ai_category,ai_client_name&email_id=in.(${ids})`,
+            { headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}` } }
+          )
+          if (enrichRes.ok) {
+            const enrichData: Array<{ email_id: string; ai_category?: string; ai_client_name?: string }> = await enrichRes.json()
+            const mapQuadrant = (c?: string): Email['ai_quadrant'] | undefined => {
+              if (!c) return undefined
+              const v = c.toLowerCase()
+              if (v === 'plan') return 'schedule'
+              if (v === 'do' || v === 'schedule' || v === 'delegate' || v === 'eliminate') return v as Email['ai_quadrant']
+              return undefined
+            }
+            const byId = new Map(enrichData.map(r => [r.email_id, r]))
+            for (const email of emails) {
+              const ai = byId.get(email.id)
+              if (ai) {
+                email.ai_quadrant = mapQuadrant(ai.ai_category) ?? email.ai_quadrant
+                email.ai_client_name = ai.ai_client_name ?? email.ai_client_name
+              }
+            }
+          }
+        } catch (enrichErr) {
+          console.warn('Email enrichment from email_processing_history failed (non-fatal):', enrichErr)
+        }
+      }
+
+      setEmails(emails)
     } catch (e) { console.error('Email load error:', e) }
     setEmailLoading(false)
   }, [])

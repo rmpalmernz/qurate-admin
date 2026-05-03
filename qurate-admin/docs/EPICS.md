@@ -26,26 +26,22 @@ Critical path to "scheduled email brief in production": **Epic 0 → Epic 4 → 
 
 ---
 
-## Epic 1 — Bridge dashboard ↔ back-of-house
+## Epic 1 — Bridge dashboard ↔ back-of-house 🟡 partial 2026-05-03
 
-**Why:** The dashboard reads from 2 of 21 tables. The back-of-house has been classifying emails into `email_processing_history` (2,343 rows) and the daily-brief reads it, but the dashboard doesn't. So Richard sees raw Graph emails with heuristic categorisation while a richer classification sits in the database, ignored.
+**Landed (data wiring):**
+- Email tab now JOINs `email_processing_history` on `email_id` after the Graph fetch in `loadEmails()`. Maps DB `ai_category` (`do | plan | delegate | eliminate`) onto dashboard `Email.ai_quadrant` (`do | schedule | delegate | eliminate`) with `plan → schedule`. Passes `ai_client_name` through. Existing `emailToQuadrant()` and `emailCategory()` consume the populated fields naturally — no UI changes required.
+- Briefing tab footer shows `N of M emails AI-classified · K heuristic` so the user sees the coverage at a glance.
+- Defensive: enrichment failures fall through silently — Email tab still renders with heuristic categorisation, no regression.
 
-**Scope**
-1. **Email tab**: instead of fetching only from Graph, JOIN with `email_processing_history` on `email_id`. Display the AI category, priority level, suggested actions, and client. Heuristic fallback only when the email hasn't been classified yet.
-2. **Calendar tab**: switch to reading from `calendar_events` (call `ms-calendar` with `persist=true` first to populate). Falls back to live Graph if table empty.
-3. **Tasks tab**: filter `eisenhower_tasks` by `quadrant_override = false` to surface AI suggestions vs human overrides; expose the `quadrant_override` toggle so Richard can correct the AI.
-4. **Clients tab**: switch from hardcoded VIP_CLIENTS to reading `vip_contacts` (after Epic 4 populates it).
-5. **Briefing tab**: it already reads `ai_daily_briefs` correctly. Add a "what data was used" footer using the `dataSnapshot` field returned by the Edge Function.
-6. New tab or sidebar: **Follow-ups** (read from `follow_ups`), **Decisions** (`core_decisions`), **Rocks** (`strategy_rocks`).
+**Still open (deferred until design refresh comes back from external UX/UI process):**
+- New tabs / sidebar entries: **Follow-ups** (`follow_ups`), **Decisions** (`core_decisions`), **Rocks** (`strategy_rocks`, 7 rows live), **Annual goals** (`eos_annual_goals`, 6 rows live).
+- Tasks tab `quadrant_override` toggle so Richard can correct AI assignments.
+- Calendar tab cache from `calendar_events` (table empty; needs `ms-calendar` cron wiring — separate scope).
+- Clients tab read from `vip_contacts` — superseded by `user_preferences.vip_companies*` from Epic 4; can drop this scope item.
 
-**Acceptance criteria**
-- Dashboard email categorisation matches `email_processing_history.ai_category` for any email present there
-- Calendar shows from cached table if available
-- A new task created via the matrix is visible in `eisenhower_tasks` with `quadrant_override = true`
+**Why deferred:** adding new UI surfaces blind risks shaping them wrong for the design refresh.
 
-**Dependencies:** Epic 0 (don't build on corrupted task data).
-
-**Estimate:** 2–3 sessions.
+**Estimate (remaining):** 1–2 sessions once designs land.
 
 ---
 
@@ -138,20 +134,18 @@ Unchanged from v1. ~2,300-line `app/dashboard/page.tsx` → split each tab into 
 
 ---
 
-## Epic 6 — Quality & observability 🟡 partial 2026-05-03
+## Epic 6 — Quality & observability ✅ shipped 2026-05-03
 
 **Landed:**
 - `morning-brief` failure-alert email (silent failures are now loud). Wraps the main catch block, sends a red-themed HTML email to the user via Graph. Inner try/catch so a broken alert can never mask the original error.
 - `/api/health` Next.js route — JSON status of Supabase + today's brief + brief email delivery. HTTP 503 when degraded, suitable for any external uptime monitor.
 - `INFRASTRUCTURE.md` cron-runs audit query (`cron.job_run_details`).
+- **Sentry wired** for browser, server, and edge runtimes via `@sentry/nextjs` v10.51 (`instrumentation.ts`, `sentry.{client,server,edge}.config.ts`, `withSentryConfig` in `next.config.js`). Tunnel route `/monitoring` to bypass ad-blockers. DSN read from `NEXT_PUBLIC_SENTRY_DSN` env var; missing DSN → SDK no-ops gracefully.
 
-**Still open:**
-- Sentry wiring — user has account, DSN to be added later.
-- Playwright smoke tests — happy-path tests for dashboard tabs, deferred until decomposition (Epic 5).
+**Carried forward to Epic 5:**
+- Playwright smoke tests — better introduced after dashboard decomposition so tests target stable component boundaries.
 - `ms-outlook-folders` failure alerts — runs every 15 min, would need rate-limiting before adding.
 - Structured Edge Function logs — `console.log` is fine until volume grows.
-
-**Estimate (remaining):** 1 session for Sentry + Playwright once DSN is to hand.
 
 ---
 
