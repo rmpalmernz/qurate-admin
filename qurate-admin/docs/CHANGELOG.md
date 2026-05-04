@@ -4,6 +4,22 @@ Records non-code changes made directly to the live Supabase project (`btzlkiwmde
 
 ---
 
+## 2026-05-03 — Epic 1: bridge dashboard ↔ back-of-house
+
+**Why:** Dashboard was reading 2 of 21 tables. Rich AI classification in `email_processing_history`, cached calendar events in `calendar_events`, and the EOS strategy rocks in `strategy_rocks` were all invisible to the user. Epic 1 wires the bridge.
+
+**Landed:**
+- New pg_cron `sync-calendar-30min` (`*/30 * * * *`) — calls `ms-calendar?persist=true` for `now()` through `now() + 14 days`, populating `calendar_events`.
+- Dashboard `loadCalendar` now reads `calendar_events` first; falls back to live Graph if cache empty or > 2 hours stale.
+- Dashboard `loadEmails` enriches with `email_processing_history` (already in main from earlier work) — preserving AI category + client mapping.
+- Tasks tab `moveTask` records `quadrant_override = true` and captures `ai_suggested_quadrant` whenever the user drags a task between quadrants. Cards show "↻ override" badge.
+- Briefing tab now renders Strategy Rocks (read from `strategy_rocks`, 7 rows) and a data-snapshot footer ("Brief built from: X Q1 · Y Q2 · Z events").
+- `ms-calendar` source pulled into `supabase/functions/ms-calendar/` (Epic 3 progress).
+
+**Pre-flight blocker (separate from PR):** ms-auth currently reports "Not connected to Microsoft" — the Vault `microsoft_refresh_token` has been invalidated. User must re-sign in via the dashboard before `sync-calendar-30min` and `morning-brief-daily` can pull Graph data again.
+
+---
+
 ## 2026-05-03 — Epic 1 (partial): dashboard reads email_processing_history; Epic 6 closed (Sentry wired)
 
 **Epic 1 — data wiring landed:**

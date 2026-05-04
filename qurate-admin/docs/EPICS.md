@@ -26,22 +26,23 @@ Critical path to "scheduled email brief in production": **Epic 0 → Epic 4 → 
 
 ---
 
-## Epic 1 — Bridge dashboard ↔ back-of-house 🟡 partial 2026-05-03
+## Epic 1 — Bridge dashboard ↔ back-of-house ✅ shipped 2026-05-03
 
-**Landed (data wiring):**
-- Email tab now JOINs `email_processing_history` on `email_id` after the Graph fetch in `loadEmails()`. Maps DB `ai_category` (`do | plan | delegate | eliminate`) onto dashboard `Email.ai_quadrant` (`do | schedule | delegate | eliminate`) with `plan → schedule`. Passes `ai_client_name` through. Existing `emailToQuadrant()` and `emailCategory()` consume the populated fields naturally — no UI changes required.
-- Briefing tab footer shows `N of M emails AI-classified · K heuristic` so the user sees the coverage at a glance.
-- Defensive: enrichment failures fall through silently — Email tab still renders with heuristic categorisation, no regression.
+> Dashboard now reads the back-of-house schema instead of treating Graph as the single source of truth.
 
-**Still open (deferred until design refresh comes back from external UX/UI process):**
-- New tabs / sidebar entries: **Follow-ups** (`follow_ups`), **Decisions** (`core_decisions`), **Rocks** (`strategy_rocks`, 7 rows live), **Annual goals** (`eos_annual_goals`, 6 rows live).
-- Tasks tab `quadrant_override` toggle so Richard can correct AI assignments.
-- Calendar tab cache from `calendar_events` (table empty; needs `ms-calendar` cron wiring — separate scope).
-- Clients tab read from `vip_contacts` — superseded by `user_preferences.vip_companies*` from Epic 4; can drop this scope item.
+**Landed:**
+- **Mail tab AI classification** — `loadEmails` enriches Graph results with `email_processing_history.ai_category` (mapping DB values `do|plan|delegate|eliminate` onto dashboard `Email.ai_quadrant` `do|schedule|delegate|eliminate`, `plan → schedule`). Passes `ai_client_name` through. Existing `emailToQuadrant()` and `emailCategory()` consume the populated fields naturally. Defensive: enrichment failures fall through silently — Mail tab still renders with heuristic categorisation, no regression. Briefing footer shows "N of M emails AI-classified · K heuristic".
+- **Calendar caching** — `loadCalendar` reads `calendar_events` first (window: today through today+14, freshness < 2 hours). Falls back to live Graph when the cache is empty/stale (e.g. fresh OAuth, missed cron). New pg_cron `sync-calendar-30min` calls `ms-calendar?persist=true` for the 14-day window every 30 min. `ms-calendar` source pulled into `supabase/functions/ms-calendar/` (Epic 3 progress).
+- **Tasks `quadrant_override`** — `moveTask` sets `quadrant_override = true` on every manual drag and captures `ai_suggested_quadrant` (preserving the AI's original guess) the first time the user overrides. Cards display an `↻ override` badge with tooltip "AI originally suggested Q…".
+- **Briefing data-snapshot footer** — renders `data_snapshot` returned by `morning-brief` (`X Q1 · Y Q2 · Z events · …`) so the user sees what the brief was built from.
+- **Strategy Rocks (EOS)** — Briefing tab now displays the 7 rows in `strategy_rocks` with status pill (on track / at risk / off track) and percent-complete.
+- **Clients tab** — already done as part of Epic 4 (`vipCompaniesMerged` = manual ∪ SharePoint-synced; `vip_contacts` table is unused and can be dropped in a future cleanup).
 
-**Why deferred:** adding new UI surfaces blind risks shaping them wrong for the design refresh.
+**Skipped (deferred until design refresh comes back from external UX/UI process):**
+- New tabs for **Follow-ups** (`follow_ups`, 0 rows) and **Decisions** (`core_decisions`, 0 rows) — no data + IA changes conflict with the in-flight redesign.
+- **Annual goals** display (`eos_annual_goals`, 6 rows) — same rationale as above.
 
-**Estimate (remaining):** 1–2 sessions once designs land.
+**Pre-flight blocker (separate from this PR):** `ms-auth` currently reports "Not connected to Microsoft" — the Vault `microsoft_refresh_token` has been invalidated. User must re-sign-in via the dashboard before `sync-calendar-30min` and `morning-brief-daily` can pull Graph data again. Code changes here still ship cleanly because the cache-read path degrades gracefully.
 
 ---
 

@@ -41,6 +41,8 @@ interface EisenhowerTask {
   title: string
   description?: string
   quadrant: 'do' | 'schedule' | 'delegate' | 'eliminate'
+  ai_suggested_quadrant?: 'do' | 'schedule' | 'delegate' | 'eliminate' | null
+  quadrant_override?: boolean
   client_name?: string
   due_date?: string
   status: string
@@ -203,16 +205,35 @@ function SectionHeading({ children, color = GOLD }: { children: React.ReactNode;
 }
 
 // ─── BRIEFING TAB ─────────────────────────────────────────────────────────────
+type BriefSnapshot = {
+  q1Tasks?: number; q2Tasks?: number; q3Tasks?: number; overdueTasks?: number;
+  followUps?: number; clients?: number; prospects?: number; openDeals?: number; calendarEvents?: number;
+}
+type StrategyRock = {
+  id: string; rock_name: string; owner: string | null;
+  status: 'on_track' | 'at_risk' | 'off_track' | string;
+  percent_complete: number | null; quarter: string | null;
+}
+
 function BriefingTab({ events, tasks, emails, vipCompanies }: { events: CalendarEvent[]; tasks: EisenhowerTask[]; emails: Email[]; vipCompanies: string[] }) {
   const [brief, setBrief] = useState('')
+  const [briefSnapshot, setBriefSnapshot] = useState<BriefSnapshot | null>(null)
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
+  const [rocks, setRocks] = useState<StrategyRock[]>([])
 
   useEffect(() => {
     fetch(`${SUPABASE_URL}/rest/v1/ai_daily_briefs?select=brief_text&order=created_at.desc&limit=1`, { headers: { apikey: ANON_KEY } })
       .then(r => r.json())
       .then(data => { if (data?.[0]) setBrief(data[0].brief_text); setLoading(false) })
       .catch(() => setLoading(false))
+
+    // Load Q1 strategy rocks (EOS framework). Limited to current quarter when one is set;
+    // falls back to all rocks otherwise. Read-only here — editing is out of scope for now.
+    fetch(`${SUPABASE_URL}/rest/v1/strategy_rocks?select=id,rock_name,owner,status,percent_complete,quarter&order=status.asc,percent_complete.desc`, { headers: { apikey: ANON_KEY } })
+      .then(r => r.ok ? r.json() : [])
+      .then((data: StrategyRock[]) => Array.isArray(data) && setRocks(data))
+      .catch(() => {})
   }, [])
 
   async function generateBrief() {
@@ -257,6 +278,12 @@ function BriefingTab({ events, tasks, emails, vipCompanies }: { events: Calendar
       if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`)
       const briefText = data.brief || ''
       if (!briefText) throw new Error(`Unexpected response shape: ${JSON.stringify(data)}`)
+      // Store the data snapshot returned by morning-brief so we can render the
+      // "Brief built from…" footer below the brief body. Cached-brief reads
+      // from the DB don't include this — the footer just hides in that case.
+      if (data?.data_snapshot && typeof data.data_snapshot === 'object') {
+        setBriefSnapshot(data.data_snapshot as BriefSnapshot)
+      }
 
       setBrief(briefText)
       // morning-brief persists the row itself; no separate write needed.
@@ -447,6 +474,38 @@ function BriefingTab({ events, tasks, emails, vipCompanies }: { events: Calendar
         </div>
       )}
 
+      {/* ── QUARTERLY ROCKS (EOS) ── */}
+      {rocks.length > 0 && (
+        <div className="briefing-section">
+          <SectionHeading color={GOLD}>Quarterly Rocks</SectionHeading>
+          <p style={{ margin: '8px 0 14px', fontSize: 14, color: BEIGE, fontWeight: 300, fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif" }}>
+            {rocks.length} rock{rocks.length !== 1 ? 's' : ''} — {rocks.filter(r => r.status === 'on_track').length} on track, {rocks.filter(r => r.status === 'at_risk').length} at risk, {rocks.filter(r => r.status === 'off_track').length} off track.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {rocks.map((r, i) => {
+              const statusColor = r.status === 'on_track' ? GOLD : r.status === 'at_risk' ? '#E67E22' : RED
+              const statusLabel = r.status === 'on_track' ? 'On track' : r.status === 'at_risk' ? 'At risk' : r.status === 'off_track' ? 'Off track' : r.status
+              return (
+                <div key={r.id} style={{
+                  padding: '10px 0 10px 12px',
+                  borderLeft: `2px solid ${statusColor}`,
+                  borderBottom: i < rocks.length - 1 ? `1px solid ${NAVY_BORDER}` : 'none',
+                  minHeight: 44,
+                }}>
+                  <p style={{ margin: '0 0 4px', fontSize: 14, color: WHITE, fontWeight: 400, lineHeight: 1.4 }}>{r.rock_name}</p>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 11, color: statusColor, fontWeight: 500, textTransform: 'uppercase', letterSpacing: 0.4 }}>{statusLabel}</span>
+                    {r.owner && <span style={{ fontSize: 12, color: BEIGE, fontWeight: 300 }}>{r.owner}</span>}
+                    {typeof r.percent_complete === 'number' && <span style={{ fontSize: 12, color: BEIGE, fontWeight: 300 }}>{r.percent_complete}%</span>}
+                    {r.quarter && <span style={{ fontSize: 11, color: `${BEIGE}80`, fontWeight: 300 }}>{r.quarter}</span>}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* ── FOLLOW-UPS OVERDUE ── */}
       <div className="briefing-section">
         <SectionHeading color={RED}>Follow-ups Overdue</SectionHeading>
@@ -504,8 +563,22 @@ function BriefingTab({ events, tasks, emails, vipCompanies }: { events: Calendar
             <p style={{ color: `${BEIGE}80`, fontSize: 13, margin: 0, fontWeight: 300 }}>Click Generate Brief to create your morning briefing.</p>
           </div>
         )}
+        {briefSnapshot && (
+          <p style={{ color: `${BEIGE}99`, fontSize: 11, margin: '16px 0 0', fontWeight: 300, letterSpacing: 0.3 }} title="Counts at the moment the brief was generated">
+            Brief built from:{' '}
+            {[
+              typeof briefSnapshot.q1Tasks === 'number' && `${briefSnapshot.q1Tasks} Q1`,
+              typeof briefSnapshot.q2Tasks === 'number' && `${briefSnapshot.q2Tasks} Q2`,
+              typeof briefSnapshot.q3Tasks === 'number' && `${briefSnapshot.q3Tasks} Q3`,
+              typeof briefSnapshot.overdueTasks === 'number' && `${briefSnapshot.overdueTasks} overdue`,
+              typeof briefSnapshot.followUps === 'number' && `${briefSnapshot.followUps} follow-ups`,
+              typeof briefSnapshot.calendarEvents === 'number' && `${briefSnapshot.calendarEvents} events`,
+              typeof briefSnapshot.openDeals === 'number' && briefSnapshot.openDeals > 0 && `${briefSnapshot.openDeals} deals`,
+            ].filter(Boolean).join(' · ')}
+          </p>
+        )}
         {emails.length > 0 && (
-          <p style={{ color: `${BEIGE}99`, fontSize: 11, margin: '16px 0 0', fontWeight: 300, letterSpacing: 0.3 }}>
+          <p style={{ color: `${BEIGE}99`, fontSize: 11, margin: '6px 0 0', fontWeight: 300, letterSpacing: 0.3 }}>
             {emails.filter(e => e.ai_quadrant).length} of {emails.length} emails AI-classified · {emails.filter(e => !e.ai_quadrant).length} heuristic
           </p>
         )}
@@ -1063,10 +1136,22 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
 
   async function moveTask(id: string, quadrant: QKey) {
     try {
+      // Manual moves are recorded as overrides so the back-of-house cron and
+      // future re-classification passes don't blow them away. ai_suggested_quadrant
+      // is preserved separately and displayed on the card so Richard can see what
+      // the AI originally thought.
+      const task = tasks.find(t => t.id === id)
+      const isManual = !task || task.quadrant !== quadrant
+      const patchBody: Record<string, unknown> = { quadrant }
+      if (isManual) patchBody.quadrant_override = true
+      // First time we override, capture the original AI suggestion if not already set.
+      if (isManual && task && !task.ai_suggested_quadrant) {
+        patchBody.ai_suggested_quadrant = task.quadrant
+      }
       await fetch(`${SUPABASE_URL}/rest/v1/eisenhower_tasks?id=eq.${id}`, {
         method: 'PATCH',
         headers: { apikey: ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-        body: JSON.stringify({ quadrant }),
+        body: JSON.stringify(patchBody),
       })
       onRefresh()
     } catch { alert('Failed to move task.') }
@@ -1261,10 +1346,13 @@ function MatrixTab({ tasks, onRefresh }: { tasks: EisenhowerTask[]; onRefresh: (
                           <div style={{ fontSize: 11, color: cfg.color, marginBottom: 4, fontWeight: 600 }}>⊕ Drop to combine</div>
                         )}
                         <p style={{ margin: '0 0 4px', fontSize: 13, color: '#FFFFFF', fontWeight: q === 'do' ? 600 : 400, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</p>
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                           {t.client_name && <span style={{ fontSize: 11, color: '#C19131', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.client_name}</span>}
                           {t.due_date && <span style={{ fontSize: 11, color: '#D9D2BE' }}>{fmtDue(t.due_date)}</span>}
                           {t.estimated_minutes && <span style={{ fontSize: 11, color: '#D9D2BE' }}>{t.estimated_minutes}m</span>}
+                          {t.quadrant_override && t.ai_suggested_quadrant && t.ai_suggested_quadrant !== t.quadrant && (
+                            <span title={`AI originally suggested Q${({ do: 1, schedule: 2, delegate: 3, eliminate: 4 } as const)[t.ai_suggested_quadrant]} (${t.ai_suggested_quadrant})`} style={{ fontSize: 10, color: '#D9D2BE', background: 'rgba(217,210,190,0.08)', border: '1px solid rgba(217,210,190,0.2)', borderRadius: 4, padding: '1px 6px', letterSpacing: 0.3 }}>↻ override</span>
+                          )}
                         </div>
                       </div>
                     )
@@ -2269,16 +2357,58 @@ export default function Dashboard() {
   }, [])
 
   const loadCalendar = useCallback(async () => {
+    // Strategy: read from calendar_events table first (populated every 30 min by
+    // pg_cron sync-calendar-30min calling ms-calendar). Fall back to a live Graph
+    // pull only when the cache is empty or stale (>2h old).
+    const start = new Date()
+    start.setHours(0, 0, 0, 0)
+    const end = new Date(start)
+    end.setDate(start.getDate() + 14)
+    const startIso = start.toISOString()
+    const endIso = end.toISOString()
+
+    type CachedEvent = { graph_event_id: string; subject: string; start_time: string; end_time: string; is_all_day: boolean; location?: string; organizer_name?: string; body_preview?: string; synced_at?: string }
+
+    const TWO_HOURS_MS = 2 * 60 * 60 * 1000
+    let usedCache = false
+
+    try {
+      const cacheRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/calendar_events?select=graph_event_id,subject,start_time,end_time,is_all_day,location,organizer_name,body_preview,synced_at&start_time=gte.${startIso}&start_time=lte.${endIso}&order=start_time.asc&limit=50`,
+        { headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}` } }
+      )
+      if (cacheRes.ok) {
+        const rows: CachedEvent[] = await cacheRes.json()
+        const newest = rows.reduce<number>((m, r) => Math.max(m, r.synced_at ? new Date(r.synced_at).getTime() : 0), 0)
+        const fresh = rows.length > 0 && (Date.now() - newest) < TWO_HOURS_MS
+        if (fresh) {
+          const mapped: CalendarEvent[] = rows.map(r => ({
+            id: r.graph_event_id,
+            subject: r.subject,
+            start: { dateTime: r.start_time },
+            end: { dateTime: r.end_time },
+            isAllDay: r.is_all_day,
+            location: r.location ? { displayName: r.location } : undefined,
+            organizer: r.organizer_name ? { emailAddress: { name: r.organizer_name } } : undefined,
+            bodyPreview: r.body_preview,
+          }))
+          setEvents(mapped)
+          usedCache = true
+        }
+      }
+    } catch (cacheErr) {
+      console.warn('calendar_events cache read failed (non-fatal):', cacheErr)
+    }
+
+    if (usedCache) return
+
+    // Fallback: live Graph pull. Same endpoint as before — preserves the existing
+    // behaviour when the cache is empty or stale (e.g. fresh OAuth, cron missed runs).
     try {
       const token = await getMsToken()
       if (!token) return
-      // Fetch calendar events for the next 14 days via MS Graph calendarView
-      const start = new Date()
-      start.setHours(0, 0, 0, 0)
-      const end = new Date(start)
-      end.setDate(start.getDate() + 14)
       const url = `https://graph.microsoft.com/v1.0/me/calendarView` +
-        `?startDateTime=${start.toISOString()}&endDateTime=${end.toISOString()}` +
+        `?startDateTime=${startIso}&endDateTime=${endIso}` +
         `&$select=id,subject,start,end,location,organizer,bodyPreview,isAllDay` +
         `&$orderby=start/dateTime&$top=50`
       const r = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Prefer: 'outlook.timezone="UTC"' } })

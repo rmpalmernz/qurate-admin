@@ -56,7 +56,8 @@ These are Outlook subfolders under Inbox. Names are sensitive to whitespace — 
 
 | Job | Schedule | Active | Calls |
 |---|---|---|---|
-| `sync-outlook-matrix` | `*/15 * * * *` (every 15 min) | **paused 2026-05-02** | `ms-outlook-folders` |
+| `sync-outlook-matrix` | `*/15 * * * *` (every 15 min) | active (resumed 2026-05-03) | `ms-outlook-folders` (Anthropic Haiku 4.5) |
+| `sync-calendar-30min` | `*/30 * * * *` (every 30 min) | active | `ms-calendar?persist=true` for now → now+14d |
 | `sync-vips-daily` | `0 19 * * *` (19:00 UTC = 06:00 AEDT) | active | `sync-vips` |
 | `morning-brief-daily` | `30 20 * * 1-5` (20:30 UTC weekdays = 06:30 AEST / 07:30 AEDT) | active | `morning-brief` with body `{"send":true}` |
 
