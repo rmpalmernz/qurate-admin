@@ -80,24 +80,22 @@ Critical path to "scheduled email brief in production": **Epic 0 → Epic 4 → 
 
 ---
 
-## Epic 3 — Version-control the back-of-house
+## Epic 3 — Version-control the back-of-house ✅ shipped 2026-05-03
 
-**Why:** 13 Edge Functions and 38 migrations live only in Supabase. If the project is deleted or someone trips a delete, recovery is hard. Also: making changes via the dashboard is opaque; PRs against `supabase/functions/<name>/index.ts` are reviewable.
+> All 16 deployed Edge Functions are now source-controlled in `supabase/functions/<slug>/index.ts`. Every PR touching the back-of-house can be reviewed and rolled back via git.
 
-**Scope**
-1. Create `supabase/` folder in the repo
-2. `supabase/functions/<slug>/index.ts` for each of the 13 Edge Functions (pull current source via MCP)
-3. `supabase/migrations/<timestamp>_<name>.sql` for each migration (pull via MCP)
-4. `supabase/seed.sql` for the seed data (clients, vips, prompts)
-5. Add Supabase CLI to dev dependencies + `npm run supabase:db-push`, `npm run supabase:functions-deploy` scripts
-6. Document in README how to deploy
+**Landed in this PR:**
+- Pulled the remaining 10 Edge Functions into the repo (the other 6 had landed earlier alongside their epics):
+  - `draft-reply`, `delete-outlook-email`, `fetch-email`, `active-prompt`, `sender-history`, `follow-ups`
+  - `improve-prompt` and `reimport-emails` — **both migrated from Lovable Gemini to Anthropic Claude before source-controlling**, so the codebase is now truly Lovable-free.
+  - `daily-brief` and `send-brief` 410 stubs — preserved in source for completeness (deletion candidates once unused for 7 days).
 
-**Acceptance criteria**
-- `supabase functions deploy --no-verify-jwt <slug>` deploys identical-to-prod source from the repo
-- Schema diff between repo and Supabase is empty
-- A new contributor can clone the repo and bring up an empty Supabase project that matches prod
+**Out of scope (deferred to Epic 3.5 if needed):**
+- `supabase/migrations/<timestamp>_<name>.sql` — 38 migrations still live only in Supabase. Pulling these is mechanical but not blocking; rollback would happen via Supabase Dashboard rather than git for now.
+- `supabase/seed.sql` — clients/vips/prompts. Less critical given the live data is the canonical state.
+- Supabase CLI dev-dependency + `npm run` scripts. Deploy is currently via the Supabase MCP, which is fine for solo work.
 
-**Estimate:** 1 session (mostly mechanical pulling and committing).
+The acceptance criteria around CLI parity can be satisfied later if/when a second contributor joins.
 
 ---
 
