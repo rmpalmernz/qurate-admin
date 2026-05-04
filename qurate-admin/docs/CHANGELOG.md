@@ -4,6 +4,20 @@ Records non-code changes made directly to the live Supabase project (`btzlkiwmde
 
 ---
 
+## 2026-05-04 — Epic 3 closed: all Edge Functions in source control + Lovable fully gone
+
+**Why:** Epic 3 was 40% done after Epics 1, 2, 4, 6 landed earlier. Pulling the remaining functions tightens the safety net (full git rollback on any back-of-house change) and let me also catch two surviving Lovable callers I'd missed.
+
+**Pulled into the repo this PR:**
+- `draft-reply`, `delete-outlook-email`, `fetch-email`, `active-prompt`, `sender-history`, `follow-ups` — straight pulls.
+- `improve-prompt` — **migrated from Lovable Gemini to Anthropic Claude Sonnet 4.5** then source-controlled. JSON-output-via-prompt + regex parse (no `response_format`).
+- `reimport-emails` — **migrated from Lovable Gemini to Anthropic Claude Haiku 4.5** then source-controlled. Same per-batch + per-sender consolidation pattern as `ms-outlook-folders`. Cost log records `email_reimport` against `claude-haiku-4-5-20251001` going forward.
+- `daily-brief` + `send-brief` 410 stubs — preserved for completeness.
+
+**Lovable status after this PR:** zero references in any deployed Edge Function. `LOVABLE_API_KEY` env var on Supabase is now safe to delete (no callers).
+
+---
+
 ## 2026-05-03 — Epic 1: bridge dashboard ↔ back-of-house
 
 **Why:** Dashboard was reading 2 of 21 tables. Rich AI classification in `email_processing_history`, cached calendar events in `calendar_events`, and the EOS strategy rocks in `strategy_rocks` were all invisible to the user. Epic 1 wires the bridge.
