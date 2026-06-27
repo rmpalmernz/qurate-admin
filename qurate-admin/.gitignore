@@ -13,3 +13,7 @@ out/
 .DS_Store
 *.pem
 npm-debug.log*
+
+# local MCP config (contains API keys) + Supabase CLI temp
+.mcp.json
+supabase/.temp/
