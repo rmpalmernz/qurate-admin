@@ -140,6 +140,25 @@ function extractName(folder: string, pattern: RegExp): string | null {
   return raw;
 }
 
+// Best-effort failure alert — emails the user when this cron fails. Throttled to
+// one email per hour via public.should_alert.
+async function notifyFailure(errMsg: string): Promise<void> {
+  try {
+    const sb = getServiceClient();
+    const { data: ok } = await sb.rpc("should_alert", { p_fn: "sync-vips", p_min: "1 hour" });
+    if (ok !== true) return;
+    const token = await getAccessToken();
+    const meRes = await fetch(`${GRAPH}/me?$select=mail,userPrincipalName`, { headers: { Authorization: `Bearer ${token}` } });
+    const me = await meRes.json();
+    const email = me.mail || me.userPrincipalName;
+    if (!email) return;
+    const html = `<!doctype html><html><body style="font-family:-apple-system,sans-serif;max-width:640px;margin:0 auto;padding:24px;color:#1f2937"><h2 style="color:#b91c1c;border-bottom:2px solid #b91c1c;padding-bottom:8px">sync-vips failed</h2><p><strong>When:</strong> ${new Date().toISOString()}</p><pre style="background:#fee2e2;padding:12px;border-radius:4px;white-space:pre-wrap;word-break:break-word;font-size:13px">${errMsg}</pre><p style="color:#475569;font-size:13px">Check the Supabase Edge Function logs (sync-vips). Alerts are throttled to one per hour.</p></body></html>`;
+    await fetch(`${GRAPH}/me/sendMail`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ message: { subject: "⚠️ sync-vips failed", body: { contentType: "HTML", content: html }, toRecipients: [{ emailAddress: { address: email } }], importance: "high" }, saveToSentItems: "true" }) });
+  } catch (alertErr) {
+    console.error("sync-vips failure-alert failed:", alertErr instanceof Error ? alertErr.message : String(alertErr));
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -214,6 +233,7 @@ Deno.serve(async (req) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     console.error("sync-vips error:", message);
+    await notifyFailure(message);
     return new Response(
       JSON.stringify({ success: false, error: message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
