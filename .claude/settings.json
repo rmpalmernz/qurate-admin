@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__n8n-mcp__get_workflow_details",
+      "mcp__n8n-mcp__search_workflows",
+      "mcp__claude_ai_Supabase__get_advisors",
+      "mcp__claude_ai_Supabase__list_edge_functions",
+      "mcp__claude_ai_ms365__sharepoint_search",
+      "mcp__claude_ai_ms365__sharepoint_folder_search",
+      "mcp__claude_ai_Vercel__list_teams",
+      "mcp__claude_ai_Vercel__list_projects"
+    ]
+  }
+}
