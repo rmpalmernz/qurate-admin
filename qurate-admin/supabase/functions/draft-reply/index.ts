@@ -6,6 +6,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0"
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")
 const MODEL = "claude-sonnet-4-5"
 const MAX_TOKENS = 1024
+// Sonnet 4.5 pricing per million tokens.
+const PRICE_INPUT_PER_MTOK = 3.0
+const PRICE_OUTPUT_PER_MTOK = 15.0
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -79,6 +82,18 @@ Deno.serve(async (req: Request) => {
       const errMsg = resData?.error?.message || resData?.message || res.statusText || "Anthropic API error"
       return jsonResponse({ error: errMsg }, res.status >= 400 ? res.status : 500)
     }
+
+    // Cost log — keeps draft-reply visible to the spend guard like the other AI calls.
+    const inputTokens = resData?.usage?.input_tokens ?? 0
+    const outputTokens = resData?.usage?.output_tokens ?? 0
+    const cost = (inputTokens * PRICE_INPUT_PER_MTOK + outputTokens * PRICE_OUTPUT_PER_MTOK) / 1_000_000
+    await supabase.from("api_cost_log").insert({
+      operation: "draft_reply",
+      model: MODEL,
+      input_tokens: inputTokens,
+      output_tokens: outputTokens,
+      estimated_cost: cost,
+    })
 
     const draft = resData?.content?.[0]?.text ?? resData?.content ?? ""
     return jsonResponse({ draft: draft.trim(), body_text: draft.trim() })
