@@ -72,13 +72,23 @@ const timeAgo = (d: string) => {
   return `${Math.floor(h / 24)}d ago`
 }
 
-async function getMsToken(): Promise<string | null> {
+// Distinguishes the two failure modes that used to be collapsed into a bare null:
+//   - 'disconnected': ms-auth answered but there's no usable token (no refresh token stored)
+//   - 'auth_failed' : ms-auth errored (refresh exchange failed) or was unreachable
+// Callers use this to tell "nothing to show" apart from "couldn't look".
+type MsTokenResult = { token: string | null; error?: 'disconnected' | 'auth_failed' }
+async function getMsToken(): Promise<MsTokenResult> {
   try {
     const res = await authFetch(`${SUPABASE_FUNCTIONS_URL}/ms-auth`)
+    if (!res.ok) {
+      // ms-auth returns 500 + {error} when the stored refresh token is invalid/expired.
+      return { token: null, error: 'auth_failed' }
+    }
     const data = await res.json()
-    return data.access_token || null
+    if (data.access_token) return { token: data.access_token }
+    return { token: null, error: 'disconnected' }
   } catch {
-    return null
+    return { token: null, error: 'auth_failed' }
   }
 }
 
@@ -193,6 +203,25 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
   )
 }
 
+// Honest failure banner — shown when a data source couldn't be loaded, so an
+// empty screen is never mistaken for a genuinely quiet day. Depth via colour +
+// border only (no drop shadow), per the design system.
+function ErrorBanner({ messages, onRetry }: { messages: string[]; onRetry?: () => void }) {
+  if (messages.length === 0) return null
+  return (
+    <div role="alert" style={{
+      display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', marginBottom: 12,
+      background: 'rgba(192,57,43,0.1)', border: '1px solid rgba(192,57,43,0.3)', borderRadius: 8,
+    }}>
+      <span style={{ color: RED, fontSize: 16, lineHeight: 1, flexShrink: 0 }}>&#9888;</span>
+      <span style={{ flex: 1, fontSize: 13, color: BEIGE, fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif" }}>{messages.join(' · ')}</span>
+      {onRetry && (
+        <button onClick={onRetry} style={{ ...secondaryBtnStyle, padding: '5px 12px', fontSize: 12, flexShrink: 0 }}>Retry</button>
+      )}
+    </div>
+  )
+}
+
 // ─── Section heading (Gujarati Sangam Bold) ─────────────────────────────────
 function SectionHeading({ children, color = GOLD }: { children: React.ReactNode; color?: string }) {
   return (
@@ -215,8 +244,9 @@ type StrategyRock = {
   percent_complete: number | null; quarter: string | null;
 }
 
-function BriefingTab({ events, tasks, emails, vipCompanies }: { events: CalendarEvent[]; tasks: EisenhowerTask[]; emails: Email[]; vipCompanies: string[] }) {
+function BriefingTab({ events, tasks, emails, vipCompanies, calendarError, tasksError }: { events: CalendarEvent[]; tasks: EisenhowerTask[]; emails: Email[]; vipCompanies: string[]; calendarError?: boolean; tasksError?: boolean }) {
   const [brief, setBrief] = useState('')
+  const [briefError, setBriefError] = useState<string | null>(null)
   const [briefSnapshot, setBriefSnapshot] = useState<BriefSnapshot | null>(null)
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
@@ -238,6 +268,7 @@ function BriefingTab({ events, tasks, emails, vipCompanies }: { events: Calendar
 
   async function generateBrief() {
     setGenerating(true)
+    setBriefError(null)
     try {
       const today = new Date()
       const todayKey = localDateKey(today)
@@ -289,7 +320,7 @@ function BriefingTab({ events, tasks, emails, vipCompanies }: { events: Calendar
       // morning-brief persists the row itself; no separate write needed.
     } catch (err) {
       console.error('Brief generation failed:', err)
-      setBrief('Error generating brief — please try again.')
+      setBriefError(err instanceof Error ? err.message : 'Unknown error')
     }
     setGenerating(false)
   }
@@ -360,7 +391,9 @@ function BriefingTab({ events, tasks, emails, vipCompanies }: { events: Calendar
           <SectionHeading color={GOLD}>Today&apos;s Calendar</SectionHeading>
           <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column' }}>
             {todayEvts.length === 0 ? (
-              <p style={{ color: BEIGE, fontSize: 15, margin: 0, fontWeight: 300 }}>No meetings today — clear day ahead.</p>
+              calendarError
+                ? <p style={{ color: RED, fontSize: 15, margin: 0, fontWeight: 300 }}>Couldn&apos;t load your calendar — tap Retry above.</p>
+                : <p style={{ color: BEIGE, fontSize: 15, margin: 0, fontWeight: 300 }}>No meetings today — clear day ahead.</p>
             ) : (
               todayEvts.map((e, i) => {
                 const cancelled = isCancelled(e)
@@ -405,7 +438,9 @@ function BriefingTab({ events, tasks, emails, vipCompanies }: { events: Calendar
           <SectionHeading color={RED}>Q1 — Do First</SectionHeading>
           <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column' }}>
             {q1Tasks.length === 0 ? (
-              <p style={{ color: BEIGE, fontSize: 15, margin: 0, fontWeight: 300 }}>No urgent tasks — great start.</p>
+              tasksError
+                ? <p style={{ color: RED, fontSize: 15, margin: 0, fontWeight: 300 }}>Couldn&apos;t load your tasks — tap Retry above.</p>
+                : <p style={{ color: BEIGE, fontSize: 15, margin: 0, fontWeight: 300 }}>No urgent tasks — great start.</p>
             ) : (
               q1Tasks.slice(0, 6).map((t, i) => {
                 const isOverdue = t.due_date && new Date(t.due_date + 'T23:59:59') < new Date()
@@ -538,6 +573,12 @@ function BriefingTab({ events, tasks, emails, vipCompanies }: { events: Calendar
             {generating ? 'Generating...' : 'Generate Brief'}
           </button>
         </div>
+        {briefError && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', marginBottom: 12, background: 'rgba(192,57,43,0.1)', border: '1px solid rgba(192,57,43,0.3)', borderRadius: 8 }}>
+            <span style={{ color: RED, fontSize: 15, lineHeight: 1 }}>&#9888;</span>
+            <span style={{ fontSize: 13, color: BEIGE }}>Couldn&apos;t generate the brief ({briefError}). Showing the last saved brief, if any.</span>
+          </div>
+        )}
         {loading ? <Spinner /> : brief ? (
           <div style={{
             color: WHITE, fontSize: 15, lineHeight: 1.7, whiteSpace: 'pre-wrap',
@@ -695,7 +736,7 @@ function SwipeableEmailRow({ email, selected, onSelect, onArchive }: {
 }
 
 // ─── EMAIL TAB ────────────────────────────────────────────────────────────────
-function EmailTab({ emails, loading, onRefresh, vipCompanies }: { emails: Email[]; loading: boolean; onRefresh: () => void; vipCompanies: string[] }) {
+function EmailTab({ emails, loading, onRefresh, vipCompanies, loadError }: { emails: Email[]; loading: boolean; onRefresh: () => void; vipCompanies: string[]; loadError?: boolean }) {
   const [selected, setSelected]       = useState<Email | null>(null)
   const [drafting, setDrafting]       = useState(false)
   const [draft, setDraft]             = useState('')
@@ -709,7 +750,12 @@ function EmailTab({ emails, loading, onRefresh, vipCompanies }: { emails: Email[
   const [sending, setSending]         = useState(false)
   const [msToken, setMsToken]         = useState<string | null>(null)
   const [isMobile, setIsMobile]       = useState(false)
+  const [toast, setToast]             = useState<{ id: string; label: string } | null>(null)
   const draftFnRef = useRef<(e: Email) => void>(() => {})
+  // Pending archive timers keyed by email id. While a timer is live the row is
+  // hidden optimistically but NOT yet deleted in Outlook — Undo cancels it.
+  const archiveTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+  const ARCHIVE_UNDO_MS = 5000
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth <= 768)
@@ -718,7 +764,7 @@ function EmailTab({ emails, loading, onRefresh, vipCompanies }: { emails: Email[
     return () => window.removeEventListener('resize', check)
   }, [])
 
-  useEffect(() => { getMsToken().then(setMsToken) }, [])
+  useEffect(() => { getMsToken().then(({ token }) => setMsToken(token)) }, [])
 
   useEffect(() => {
     function handleKey(ev: KeyboardEvent) {
@@ -733,10 +779,54 @@ function EmailTab({ emails, loading, onRefresh, vipCompanies }: { emails: Email[
     return () => window.removeEventListener('keydown', handleKey)
   }, [selected])
 
+  // Actually archive in Outlook once the undo window lapses. Until this runs the
+  // email is only hidden locally — so "archive" finally means archive, with a way back.
+  async function commitArchive(id: string) {
+    archiveTimers.current.delete(id)
+    setToast(t => (t?.id === id ? null : t))
+    try {
+      const res = await authFetch(`${SUPABASE_FUNCTIONS_URL}/delete-outlook-email`, {
+        method: 'POST',
+        body: JSON.stringify({ messageId: id }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    } catch (e) {
+      console.error('Archive failed:', e)
+      // Roll the row back into view and say so — never silently drop the email.
+      setArchived(prev => { const s = new Set(prev); s.delete(id); return s })
+      setToast({ id, label: 'Archive failed — email restored' })
+      setTimeout(() => setToast(t => (t?.id === id ? null : t)), 4000)
+    }
+  }
+
   function archiveEmail(id: string) {
     setArchived(prev => { const s = new Set(prev); s.add(id); return s })
     if (selected?.id === id) { setSelected(null); setDraft('') }
+    const existing = archiveTimers.current.get(id)
+    if (existing) clearTimeout(existing)
+    archiveTimers.current.set(id, setTimeout(() => commitArchive(id), ARCHIVE_UNDO_MS))
+    setToast({ id, label: 'Email archived' })
   }
+
+  function undoArchive(id: string) {
+    const timer = archiveTimers.current.get(id)
+    if (timer) { clearTimeout(timer); archiveTimers.current.delete(id) }
+    setArchived(prev => { const s = new Set(prev); s.delete(id); return s })
+    setToast(null)
+  }
+
+  // On unmount, flush any pending archives straight to Outlook (no state updates).
+  useEffect(() => {
+    const timers = archiveTimers.current
+    return () => {
+      timers.forEach((timer, id) => {
+        clearTimeout(timer)
+        authFetch(`${SUPABASE_FUNCTIONS_URL}/delete-outlook-email`, {
+          method: 'POST', body: JSON.stringify({ messageId: id }),
+        }).catch(() => {})
+      })
+    }
+  }, [])
 
   async function draftReply(email: Email) {
     setDrafting(true); setDraft('')
@@ -878,7 +968,7 @@ function EmailTab({ emails, loading, onRefresh, vipCompanies }: { emails: Email[
           )}
 
           {loading ? <Spinner /> : visible.length === 0 ? (
-            <Card><p style={{ color: '#D9D2BE', margin: 0, fontSize: 13 }}>No emails in this view.</p></Card>
+            <Card><p style={{ color: loadError ? '#C0392B' : '#D9D2BE', margin: 0, fontSize: 13 }}>{loadError ? "Couldn't load your inbox — tap Retry at the top." : 'No emails in this view.'}</p></Card>
           ) : (
             <div style={{ touchAction: 'pan-y' }}>
               {visible.map(email => (
@@ -1013,6 +1103,22 @@ function EmailTab({ emails, loading, onRefresh, vipCompanies }: { emails: Email[
             </div>
           </div>
         </Modal>
+      )}
+
+      {/* Undo toast for archive — depth via colour + border, no shadow */}
+      {toast && (
+        <div role="status" style={{
+          position: 'fixed', left: '50%', transform: 'translateX(-50%)',
+          bottom: 'calc(76px + env(safe-area-inset-bottom, 0px))', zIndex: 400,
+          display: 'flex', alignItems: 'center', gap: 16,
+          padding: '10px 16px', maxWidth: 'calc(100vw - 32px)',
+          background: '#3f5262', border: `1px solid ${NAVY_BORDER}`, borderRadius: 10,
+        }}>
+          <span style={{ fontSize: 13, color: WHITE, fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif" }}>{toast.label}</span>
+          {archiveTimers.current.has(toast.id) && (
+            <button onClick={() => undoArchive(toast.id)} style={{ background: 'none', border: 'none', color: GOLD, fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif" }}>Undo</button>
+          )}
+        </div>
       )}
     </div>
   )
@@ -1545,7 +1651,7 @@ function evtEnd(e: CalendarEvent): Date {
   return new Date(0)
 }
 
-function CalendarTab({ events, tasks }: { events: CalendarEvent[]; tasks: EisenhowerTask[] }) {
+function CalendarTab({ events, tasks, loadError }: { events: CalendarEvent[]; tasks: EisenhowerTask[]; loadError?: boolean }) {
   const [view, setView]       = useState<'agenda'|'week'>('agenda')
   const [selected, setSelected] = useState<{ type: 'event'; data: CalendarEvent } | { type: 'task'; data: EisenhowerTask } | null>(null)
   const [isMobile, setIsMobile] = useState(false)
@@ -1695,7 +1801,7 @@ function CalendarTab({ events, tasks }: { events: CalendarEvent[]; tasks: Eisenh
           {/* ── Agenda view ── */}
           {view === 'agenda' && (
             sortedDays.length === 0
-              ? <Card><p style={{ color: '#D9D2BE', margin: 0, fontSize: 13 }}>No upcoming events or tasks.</p></Card>
+              ? <Card><p style={{ color: loadError ? '#C0392B' : '#D9D2BE', margin: 0, fontSize: 13 }}>{loadError ? "Couldn't load your calendar — tap Retry at the top." : 'No upcoming events or tasks.'}</p></Card>
               : <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {sortedDays.slice(0, 14).map(([key, group]) => (
                     <div key={key} style={{ marginBottom: 8 }}>
@@ -2085,6 +2191,7 @@ function SettingsTab({ connected, onDisconnect, settings, save, loading }: {
   const [saving, setSaving]             = useState(false)
   const [syncing, setSyncing]           = useState(false)
   const [syncMessage, setSyncMessage]   = useState<string | null>(null)
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false)
 
   async function triggerVipSync() {
     setSyncing(true)
@@ -2255,9 +2362,21 @@ function SettingsTab({ connected, onDisconnect, settings, save, loading }: {
             <p style={{ margin: '0 0 4px', fontSize: 14, color: '#FFFFFF' }}>{connected ? 'Connected to Microsoft 365' : 'Not connected'}</p>
             <p style={{ margin: 0, fontSize: 12, color: '#D9D2BE' }}>{connected ? 'Your email and calendar are syncing.' : 'Connect to access email and calendar data.'}</p>
           </div>
-          {connected && <button onClick={disconnect} style={{ padding: '8px 14px', background: 'rgba(192,57,43,0.1)', color: '#C0392B', border: '1px solid rgba(192,57,43,0.2)', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif" }}>Disconnect</button>}
+          {connected && <button onClick={() => setConfirmDisconnect(true)} style={{ padding: '8px 14px', background: 'rgba(192,57,43,0.1)', color: '#C0392B', border: '1px solid rgba(192,57,43,0.2)', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif" }}>Disconnect</button>}
         </div>
       </Card>
+
+      {confirmDisconnect && (
+        <Modal title="Disconnect Microsoft?" onClose={() => setConfirmDisconnect(false)}>
+          <p style={{ margin: '0 0 20px', fontSize: 14, color: BEIGE, lineHeight: 1.6 }}>
+            This revokes access to your email and calendar and signs you out. You&apos;ll need to sign in with Microsoft again to reconnect.
+          </p>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+            <button onClick={() => setConfirmDisconnect(false)} style={secondaryBtnStyle}>Cancel</button>
+            <button onClick={() => { setConfirmDisconnect(false); disconnect() }} style={{ ...primaryBtnStyle, background: RED, color: WHITE }}>Disconnect</button>
+          </div>
+        </Modal>
+      )}
 
       {/* About */}
       <Card>
@@ -2297,12 +2416,16 @@ export default function Dashboard() {
   const [tasks, setTasks]       = useState<EisenhowerTask[]>([])
   const [emailLoading, setEmailLoading] = useState(false)
   const [connected, setConnected] = useState(false)
+  // Per-source load errors. Presence of a value means that source failed to load —
+  // the UI uses this to show an honest "couldn't load" instead of an empty "all clear".
+  const [loadErrors, setLoadErrors] = useState<{ email?: string; calendar?: string; tasks?: string; auth?: boolean }>({})
+  const [confirmSignOut, setConfirmSignOut] = useState(false)
   const userSettings = useUserSettings()
   const { settings, vipCompaniesMerged } = userSettings
 
   // Verify MS token on mount; redirect to login if missing
   useEffect(() => {
-    getMsToken().then(token => {
+    getMsToken().then(({ token }) => {
       if (token) setConnected(true)
       else window.location.href = '/'
     })
@@ -2310,10 +2433,13 @@ export default function Dashboard() {
 
   const loadEmails = useCallback(async () => {
     setEmailLoading(true)
+    setLoadErrors(e => ({ ...e, email: undefined }))
     try {
-      const token = await getMsToken()
-      if (!token) { setEmailLoading(false); return }
+      const { token } = await getMsToken()
+      if (!token) { setLoadErrors(e => ({ ...e, auth: true, email: 'auth' })); setEmailLoading(false); return }
+      setLoadErrors(e => ({ ...e, auth: false }))
       const r = await fetch('https://graph.microsoft.com/v1.0/me/messages?$top=50&$orderby=receivedDateTime desc&$select=id,subject,from,receivedDateTime,bodyPreview,isRead', { headers: { Authorization: `Bearer ${token}` } })
+      if (!r.ok) throw new Error(`Graph ${r.status}`)
       const data = await r.json()
       const emails: Email[] = (data.value || []).filter((e: Email) => e.from && e.id && e.receivedDateTime)
 
@@ -2352,7 +2478,10 @@ export default function Dashboard() {
       }
 
       setEmails(emails)
-    } catch (e) { console.error('Email load error:', e) }
+    } catch (e) {
+      console.error('Email load error:', e)
+      setLoadErrors(prev => ({ ...prev, email: e instanceof Error ? e.message : 'load failed' }))
+    }
     setEmailLoading(false)
   }, [])
 
@@ -2371,6 +2500,7 @@ export default function Dashboard() {
 
     const TWO_HOURS_MS = 2 * 60 * 60 * 1000
     let usedCache = false
+    setLoadErrors(e => ({ ...e, calendar: undefined }))
 
     try {
       const cacheRes = await fetch(
@@ -2405,24 +2535,33 @@ export default function Dashboard() {
     // Fallback: live Graph pull. Same endpoint as before — preserves the existing
     // behaviour when the cache is empty or stale (e.g. fresh OAuth, cron missed runs).
     try {
-      const token = await getMsToken()
-      if (!token) return
+      const { token } = await getMsToken()
+      if (!token) { setLoadErrors(e => ({ ...e, calendar: 'auth', auth: true })); return }
       const url = `https://graph.microsoft.com/v1.0/me/calendarView` +
         `?startDateTime=${startIso}&endDateTime=${endIso}` +
         `&$select=id,subject,start,end,location,organizer,bodyPreview,isAllDay` +
         `&$orderby=start/dateTime&$top=50`
       const r = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Prefer: 'outlook.timezone="UTC"' } })
+      if (!r.ok) throw new Error(`Graph ${r.status}`)
       const data = await r.json()
       if (data.value) setEvents(data.value)
-    } catch (e) { console.error('Calendar load error:', e) }
+    } catch (e) {
+      console.error('Calendar load error:', e)
+      setLoadErrors(prev => ({ ...prev, calendar: e instanceof Error ? e.message : 'load failed' }))
+    }
   }, [])
 
   const loadTasks = useCallback(async () => {
+    setLoadErrors(e => ({ ...e, tasks: undefined }))
     try {
       const res  = await fetch(`${SUPABASE_URL}/rest/v1/eisenhower_tasks?select=*&status=neq.done&order=created_at.desc`, { headers: { apikey: ANON_KEY } })
+      if (!res.ok) throw new Error(`Supabase ${res.status}`)
       const data = await res.json()
       if (Array.isArray(data)) setTasks(data)
-    } catch (e) { console.error('Tasks load error:', e) }
+    } catch (e) {
+      console.error('Tasks load error:', e)
+      setLoadErrors(prev => ({ ...prev, tasks: e instanceof Error ? e.message : 'load failed' }))
+    }
   }, [])
 
   useEffect(() => {
@@ -2439,6 +2578,20 @@ export default function Dashboard() {
     return events.filter(e => (e.start?.dateTime || e.start?.date) && localDateKey(evtStart(e)) === todayKey).length
   }, [events])
   const q1Count = useMemo(() => tasks.filter(t => t.quadrant === 'do').length, [tasks])
+
+  const errorMessages = useMemo(() => {
+    const m: string[] = []
+    if (loadErrors.auth) m.push("Couldn't reach Microsoft — reconnect in Settings if this persists")
+    if (loadErrors.email && loadErrors.email !== 'auth') m.push('Inbox failed to load')
+    if (loadErrors.calendar && loadErrors.calendar !== 'auth') m.push('Calendar failed to load')
+    if (loadErrors.tasks) m.push('Tasks failed to load')
+    return m
+  }, [loadErrors])
+  const reloadAll = useCallback(() => { loadEmails(); loadCalendar(); loadTasks() }, [loadEmails, loadCalendar, loadTasks])
+
+  const calendarHasError = !!(loadErrors.auth || loadErrors.calendar)
+  const emailHasError    = !!(loadErrors.auth || loadErrors.email)
+  const tasksHasError    = !!loadErrors.tasks
 
   const navItems: Array<{ key: Tab; label: string; badge?: number }> = [
     { key: 'briefing',  label: 'Brief' },
@@ -2461,7 +2614,7 @@ export default function Dashboard() {
         </div>
         <span style={{ fontSize: 15, fontWeight: 400, color: BEIGE, fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif" }}>{TAB_TITLES[tab]}</span>
         <button
-          onClick={() => { window.location.href = '/api/auth/logout' }}
+          onClick={() => setConfirmSignOut(true)}
           title="Sign out"
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: 'transparent', color: BEIGE, border: `1px solid ${NAVY_BORDER}`, borderRadius: 8, fontSize: 12, cursor: 'pointer', fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif", transition: 'all 0.15s' }}
           onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = RED; (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(192,57,43,0.4)' }}
@@ -2478,9 +2631,10 @@ export default function Dashboard() {
 
       {/* Scrollable content */}
       <div className="main-content">
-        {tab === 'briefing'  && <BriefingTab events={events} tasks={tasks} emails={emails} vipCompanies={vipCompaniesMerged} />}
-        {tab === 'email'     && <EmailTab emails={emails} loading={emailLoading} onRefresh={loadEmails} vipCompanies={vipCompaniesMerged} />}
-        {tab === 'calendar'  && <CalendarTab events={events} tasks={tasks} />}
+        <ErrorBanner messages={errorMessages} onRetry={reloadAll} />
+        {tab === 'briefing'  && <BriefingTab events={events} tasks={tasks} emails={emails} vipCompanies={vipCompaniesMerged} calendarError={calendarHasError} tasksError={tasksHasError} />}
+        {tab === 'email'     && <EmailTab emails={emails} loading={emailLoading} onRefresh={loadEmails} vipCompanies={vipCompaniesMerged} loadError={emailHasError} />}
+        {tab === 'calendar'  && <CalendarTab events={events} tasks={tasks} loadError={calendarHasError} />}
         {tab === 'matrix'    && <MatrixTab tasks={tasks} onRefresh={loadTasks} />}
         {tab === 'clients'   && <ClientsTab emails={emails} tasks={tasks} vipCompanies={vipCompaniesMerged} />}
         {tab === 'chat'      && <ChatTab />}
@@ -2497,6 +2651,18 @@ export default function Dashboard() {
           </button>
         ))}
       </nav>
+
+      {confirmSignOut && (
+        <Modal title="Sign out?" onClose={() => setConfirmSignOut(false)}>
+          <p style={{ margin: '0 0 20px', fontSize: 14, color: BEIGE, lineHeight: 1.6 }}>
+            This signs you out and disconnects your Microsoft 365 session. You&apos;ll need to sign in again to access your email and calendar.
+          </p>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+            <button onClick={() => setConfirmSignOut(false)} style={secondaryBtnStyle}>Cancel</button>
+            <button onClick={() => { window.location.href = '/api/auth/logout' }} style={{ ...primaryBtnStyle, background: RED, color: WHITE }}>Sign out</button>
+          </div>
+        </Modal>
+      )}
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
