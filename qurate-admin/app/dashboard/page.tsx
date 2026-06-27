@@ -302,6 +302,261 @@ function SectionHeading({ children, color = GOLD }: { children: React.ReactNode;
   )
 }
 
+// ─── TODAY TAB — the Action Queue ─────────────────────────────────────────────
+// Epic B (BRD v4 §5.3): the thin app's home. One prioritised list of things that
+// need the user, each pre-classified with a recommended action. Replaces inbox
+// triage with approve / edit / dismiss / snooze. Sources today: overdue
+// follow-ups, Q1 ("Do") emails needing a reply, and Q1 tasks. Drafted replies
+// come from the draft-reply Edge Function; sends go via Graph; nothing auto-sends.
+interface FollowUp {
+  id: string
+  subject?: string
+  recipient?: string
+  recipient_name?: string
+  days_overdue?: number
+  sent_date?: string
+}
+
+type QueueKind = 'followup' | 'reply' | 'task'
+interface QueueItem {
+  key: string
+  kind: QueueKind
+  title: string
+  subtitle: string
+  tag: string
+  tagColor: string
+  detail?: string
+  email?: Email
+  task?: EisenhowerTask
+  followUp?: FollowUp
+}
+
+const todayISO = () => new Date().toLocaleDateString('en-CA')
+
+function QueueCard({ item, msTokenAvailable, onDraft, onSend, onComplete, onDismiss, onSnooze }: {
+  item: QueueItem
+  msTokenAvailable: boolean
+  onDraft: (item: QueueItem) => Promise<string>
+  onSend: (item: QueueItem, text: string) => Promise<void>
+  onComplete: (item: QueueItem) => Promise<void>
+  onDismiss: (item: QueueItem) => void
+  onSnooze: (key: string) => void
+}) {
+  const [phase, setPhase] = useState<'idle' | 'drafting' | 'editing' | 'sending' | 'working'>('idle')
+  const [text, setText] = useState('')
+  const [err, setErr] = useState<string | null>(null)
+  const canReply = item.kind === 'reply' || item.kind === 'followup'
+
+  async function startDraft() {
+    setErr(null); setPhase('drafting')
+    try { const d = await onDraft(item); setText(d); setPhase('editing') }
+    catch { setErr('Could not generate a draft.'); setPhase('idle') }
+  }
+  async function doSend() {
+    if (!text.trim()) return
+    setErr(null); setPhase('sending')
+    try { await onSend(item, text) } // success removes the card from the list
+    catch { setErr('Send failed — nothing was sent.'); setPhase('editing') }
+  }
+  async function doComplete() {
+    setErr(null); setPhase('working')
+    try { await onComplete(item) } // success removes the card
+    catch { setErr('Action failed.'); setPhase('idle') }
+  }
+
+  const busy = phase === 'drafting' || phase === 'sending' || phase === 'working'
+  const actBtn: React.CSSProperties = { ...secondaryBtnStyle, padding: '7px 14px', fontSize: 12 }
+
+  return (
+    <div style={{ background: NAVY_LIGHT, border: `1px solid ${NAVY_BORDER}`, borderLeft: `3px solid ${item.tagColor}`, borderRadius: 8, padding: 16, marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: item.tagColor, textTransform: 'uppercase', letterSpacing: '0.6px', background: 'rgba(255,255,255,0.04)', border: `1px solid ${item.tagColor}55`, borderRadius: 4, padding: '2px 6px' }}>{item.tag}</span>
+            <span style={{ fontSize: 12, color: BEIGE, fontWeight: 300 }}>{item.subtitle}</span>
+          </div>
+          <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: WHITE, lineHeight: 1.4 }}>{item.title}</p>
+          {item.detail && <p style={{ margin: '4px 0 0', fontSize: 12, color: BEIGE, fontWeight: 300, lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.detail}</p>}
+        </div>
+      </div>
+
+      {phase === 'editing' && (
+        <div style={{ marginTop: 12 }}>
+          <textarea value={text} onChange={e => setText(e.target.value)} rows={6}
+            style={{ width: '100%', background: NAVY, color: WHITE, border: `1px solid ${NAVY_BORDER}`, borderRadius: 8, padding: 10, fontSize: 13, fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif", resize: 'vertical' }} />
+        </div>
+      )}
+      {err && <p style={{ margin: '8px 0 0', fontSize: 12, color: RED }}>{err}</p>}
+
+      <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+        {canReply && phase !== 'editing' && (
+          <button onClick={startDraft} disabled={busy} style={{ ...primaryBtnStyle, padding: '7px 14px', fontSize: 12, opacity: busy ? 0.6 : 1 }}>
+            {phase === 'drafting' ? 'Drafting…' : item.kind === 'followup' ? 'Draft chase' : 'Draft reply'}
+          </button>
+        )}
+        {phase === 'editing' && (
+          <>
+            <button onClick={doSend} disabled={phase !== 'editing' || !msTokenAvailable} title={msTokenAvailable ? '' : 'Reconnect Microsoft to send'} style={{ ...primaryBtnStyle, padding: '7px 14px', fontSize: 12, opacity: msTokenAvailable ? 1 : 0.5 }}>Approve &amp; send</button>
+            <button onClick={() => setPhase('idle')} style={actBtn}>Cancel</button>
+          </>
+        )}
+        {item.kind === 'task' && (
+          <button onClick={doComplete} disabled={busy} style={{ ...primaryBtnStyle, padding: '7px 14px', fontSize: 12, opacity: busy ? 0.6 : 1 }}>{phase === 'working' ? 'Completing…' : 'Complete'}</button>
+        )}
+        {phase !== 'editing' && (
+          <>
+            {item.kind === 'followup' && <button onClick={doComplete} disabled={busy} style={actBtn}>Mark done</button>}
+            {item.kind === 'reply' && <button onClick={() => onDismiss(item)} disabled={busy} style={actBtn}>Archive</button>}
+            <button onClick={() => onSnooze(item.key)} disabled={busy} style={actBtn}>Snooze</button>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function TodayTab({ emails, tasks, onCompleteTask }: {
+  emails: Email[]
+  tasks: EisenhowerTask[]
+  onCompleteTask: (id: string) => Promise<void> | void
+}) {
+  const [followUps, setFollowUps] = useState<FollowUp[]>([])
+  const [snoozed, setSnoozed] = useState<Set<string>>(new Set())
+  const [removed, setRemoved] = useState<Set<string>>(new Set())
+  const [msToken, setMsToken] = useState<string | null>(null)
+  const VISIBLE_CAP = 25
+
+  useEffect(() => { getMsToken().then(({ token }) => setMsToken(token)) }, [])
+
+  useEffect(() => {
+    fetch(`${SUPABASE_URL}/rest/v1/follow_ups?resolved_at=is.null&select=id,subject,recipient,recipient_name,days_overdue,sent_date&order=days_overdue.desc`, { headers: { apikey: ANON_KEY } })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => { if (Array.isArray(d)) setFollowUps(d) })
+      .catch(() => {})
+  }, [])
+
+  // Archive an email via the same Edge Function the Mail tab uses.
+  async function archiveEmail(id: string) {
+    try { await authFetch(`${SUPABASE_FUNCTIONS_URL}/delete-outlook-email`, { method: 'POST', body: JSON.stringify({ messageId: id }) }) }
+    catch { /* best-effort; the item is already removed from the queue optimistically */ }
+  }
+
+  // Build the prioritised queue: follow-ups → Q1 emails → overdue tasks → due-soon tasks.
+  const { items, q1TaskTotal } = useMemo(() => {
+    const today = todayISO()
+    const out: QueueItem[] = []
+
+    followUps.forEach(f => out.push({
+      key: `fu-${f.id}`, kind: 'followup', tag: 'Follow-up', tagColor: RED,
+      title: `Chase: ${f.subject || '(no subject)'}`,
+      subtitle: `${f.recipient_name || f.recipient || 'recipient'} · ${f.days_overdue ?? 0}d overdue`,
+      detail: 'You sent this and have had no reply.', followUp: f,
+    }))
+
+    emails.filter(e => emailToQuadrant(e) === 'do').forEach(e => out.push({
+      key: `em-${e.id}`, kind: 'reply', tag: 'Q1 email', tagColor: GOLD,
+      title: e.subject || '(no subject)',
+      subtitle: `${e.from?.name || e.from?.address || 'unknown'}${e.isRead ? '' : ' · unread'}`,
+      detail: e.bodyPreview, email: e,
+    }))
+
+    const q1Tasks = tasks.filter(t => t.quadrant === 'do' && t.status !== 'done' && t.status !== 'cancelled')
+    const overdue = q1Tasks.filter(t => t.due_date && t.due_date < today)
+    const dueSoon = q1Tasks.filter(t => !(t.due_date && t.due_date < today))
+    const byDue = (a: EisenhowerTask, b: EisenhowerTask) => (a.due_date || '9999').localeCompare(b.due_date || '9999')
+    overdue.sort(byDue); dueSoon.sort(byDue)
+    const taskItem = (t: EisenhowerTask, od: boolean): QueueItem => ({
+      key: `tk-${t.id}`, kind: 'task', tag: od ? 'Overdue task' : 'Q1 task', tagColor: od ? RED : GOLD,
+      title: t.title,
+      subtitle: [t.client_name, t.due_date ? (od ? `was due ${t.due_date}` : `due ${t.due_date}`) : null, t.estimated_minutes ? `${t.estimated_minutes}m` : null].filter(Boolean).join(' · ') || 'no due date',
+      detail: t.description, task: t,
+    })
+    overdue.forEach(t => out.push(taskItem(t, true)))
+    dueSoon.forEach(t => out.push(taskItem(t, false)))
+
+    const filtered = out.filter(i => !snoozed.has(i.key) && !removed.has(i.key))
+    return { items: filtered, q1TaskTotal: q1Tasks.length }
+  }, [followUps, emails, tasks, snoozed, removed])
+
+  const visible = items.slice(0, VISIBLE_CAP)
+  const hiddenCount = items.length - visible.length
+
+  function snooze(key: string) { setSnoozed(prev => new Set(prev).add(key)) }
+  function remove(key: string) { setRemoved(prev => new Set(prev).add(key)) }
+
+  async function onDraft(item: QueueItem): Promise<string> {
+    const payload = item.kind === 'reply'
+      ? { email_id: item.email!.id, subject: item.email!.subject, from_name: item.email!.from?.name, from_email: item.email!.from?.address, body_preview: item.email!.bodyPreview }
+      : { subject: item.followUp!.subject, from_name: item.followUp!.recipient_name, from_email: item.followUp!.recipient, body_preview: `Awaiting reply — ${item.followUp!.days_overdue ?? 0} days overdue. Write a short, warm chase.` }
+    const res = await authFetch(`${SUPABASE_FUNCTIONS_URL}/draft-reply`, { method: 'POST', body: JSON.stringify(payload) })
+    const data = await res.json()
+    return data.draft || data.body_text || ''
+  }
+
+  async function onSend(item: QueueItem, body: string): Promise<void> {
+    if (!msToken) throw new Error('no token')
+    const to = item.kind === 'reply' ? item.email!.from?.address : item.followUp!.recipient
+    const subject = `Re: ${(item.kind === 'reply' ? item.email!.subject : item.followUp!.subject) || ''}`
+    const res = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${msToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: { subject, body: { contentType: 'Text', content: body }, toRecipients: [{ emailAddress: { address: to } }] } }),
+    })
+    if (!res.ok) throw new Error(`sendMail ${res.status}`)
+    if (item.kind === 'reply') archiveEmail(item.email!.id)
+    else await resolveFollowUp(item.followUp!.id)
+    remove(item.key)
+  }
+
+  async function resolveFollowUp(id: string) {
+    await fetch(`${SUPABASE_URL}/rest/v1/follow_ups?id=eq.${id}`, {
+      method: 'PATCH', headers: { apikey: ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ resolved_at: new Date().toISOString() }),
+    })
+  }
+
+  async function onComplete(item: QueueItem): Promise<void> {
+    if (item.kind === 'task') await onCompleteTask(item.task!.id)
+    else if (item.kind === 'followup') await resolveFollowUp(item.followUp!.id)
+    remove(item.key)
+  }
+
+  function onDismiss(item: QueueItem) {
+    if (item.kind === 'reply') archiveEmail(item.email!.id)
+    remove(item.key)
+  }
+
+  return (
+    <div style={{ animation: 'fadeIn 0.35s' }}>
+      <div style={{ marginBottom: 16 }}>
+        <h2 style={{ margin: '0 0 4px', fontSize: 22, fontWeight: 700, color: WHITE, fontFamily: "'Gujarati Sangam MN', 'DM Sans', serif" }}>Today</h2>
+        <p style={{ margin: 0, fontSize: 13, color: BEIGE, fontWeight: 300 }}>
+          {items.length === 0 ? 'Nothing needs you right now — clear queue.' : `${items.length} ${items.length === 1 ? 'thing needs' : 'things need'} you.`}
+        </p>
+      </div>
+
+      {items.length === 0 ? (
+        <div style={{ background: NAVY_LIGHT, border: `1px solid ${NAVY_BORDER}`, borderRadius: 8, padding: '32px 16px', textAlign: 'center' }}>
+          <p style={{ margin: 0, fontSize: 14, color: BEIGE }}>Nothing needs you right now.</p>
+          <p style={{ margin: '4px 0 0', fontSize: 12, color: 'rgba(217,210,190,0.5)' }}>Follow-ups, urgent emails, and due tasks will appear here.</p>
+        </div>
+      ) : (
+        <>
+          {visible.map(item => (
+            <QueueCard key={item.key} item={item} msTokenAvailable={!!msToken}
+              onDraft={onDraft} onSend={onSend} onComplete={onComplete} onDismiss={onDismiss} onSnooze={snooze} />
+          ))}
+          {hiddenCount > 0 && (
+            <p style={{ margin: '8px 4px 0', fontSize: 12, color: 'rgba(217,210,190,0.6)' }}>
+              + {hiddenCount} more not shown. Your Q1 “Do” quadrant holds {q1TaskTotal} tasks — it’s overloaded and needs triage in Tasks.
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 // ─── BRIEFING TAB ─────────────────────────────────────────────────────────────
 type BriefSnapshot = {
   q1Tasks?: number; q2Tasks?: number; q3Tasks?: number; overdueTasks?: number;
@@ -2461,15 +2716,16 @@ function SettingsTab({ connected, onDisconnect, settings, save, loading }: {
 
 // ─── MAIN DASHBOARD ───────────────────────────────────────────────────────────
 const TAB_TITLES: Record<string, string> = {
-  briefing: 'Briefing', email: 'Inbox', calendar: 'Calendar',
+  today: 'Today', briefing: 'Briefing', email: 'Inbox', calendar: 'Calendar',
   matrix: 'Tasks', clients: 'Clients', chat: 'AI Chat', settings: 'Settings',
 }
 
-type Tab = 'briefing'|'email'|'calendar'|'matrix'|'clients'|'chat'|'settings'
+type Tab = 'today'|'briefing'|'email'|'calendar'|'matrix'|'clients'|'chat'|'settings'
 
 // Simple SVG icons for bottom nav
 function NavIcon({ name }: { name: Tab }) {
   const s = { width: 22, height: 22, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5 }
+  if (name === 'today')    return <svg {...s} strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
   if (name === 'briefing') return <svg {...s} strokeLinecap="round" strokeLinejoin="round"><path d="M3 12L12 3l9 9"/><path d="M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1V10"/></svg>
   if (name === 'email')    return <svg {...s} strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 8l10 6 10-6"/></svg>
   if (name === 'calendar') return <svg {...s} strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>
@@ -2479,7 +2735,7 @@ function NavIcon({ name }: { name: Tab }) {
   /* settings */           return <svg {...s} strokeLinecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v2m0 16v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M2 12h2m16 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
 }
 export default function Dashboard() {
-  const [tab, setTab]           = useState<Tab>('briefing')
+  const [tab, setTab]           = useState<Tab>('today')
   const [emails, setEmails]     = useState<Email[]>([])
   const [events, setEvents]     = useState<CalendarEvent[]>([])
   const [tasks, setTasks]       = useState<EisenhowerTask[]>([])
@@ -2662,7 +2918,24 @@ export default function Dashboard() {
   const emailHasError    = !!(loadErrors.auth || loadErrors.email)
   const tasksHasError    = !!loadErrors.tasks
 
+  // "Needs you" badge for the Today queue: Q1 emails + overdue Q1 tasks.
+  const todayActionCount = useMemo(() => {
+    const today = new Date().toLocaleDateString('en-CA')
+    const q1Emails = emails.filter(e => emailToQuadrant(e) === 'do').length
+    const overdueTasks = tasks.filter(t => t.quadrant === 'do' && t.status !== 'done' && t.status !== 'cancelled' && t.due_date && t.due_date < today).length
+    return q1Emails + overdueTasks
+  }, [emails, tasks])
+
+  const completeTaskTop = useCallback(async (id: string) => {
+    await fetch(`${SUPABASE_URL}/rest/v1/eisenhower_tasks?id=eq.${id}`, {
+      method: 'PATCH', headers: { apikey: ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ status: 'done' }),
+    })
+    loadTasks()
+  }, [loadTasks])
+
   const navItems: Array<{ key: Tab; label: string; badge?: number }> = [
+    { key: 'today',     label: 'Today',    badge: todayActionCount || undefined },
     { key: 'briefing',  label: 'Brief' },
     { key: 'email',     label: 'Mail',     badge: unread || undefined },
     { key: 'calendar',  label: 'Calendar', badge: todayEvtCount || undefined },
@@ -2702,6 +2975,7 @@ export default function Dashboard() {
       <div className="main-content">
         <HealthBanner />
         <ErrorBanner messages={errorMessages} onRetry={reloadAll} />
+        {tab === 'today'     && <TodayTab emails={emails} tasks={tasks} onCompleteTask={completeTaskTop} />}
         {tab === 'briefing'  && <BriefingTab events={events} tasks={tasks} emails={emails} vipCompanies={vipCompaniesMerged} calendarError={calendarHasError} tasksError={tasksHasError} />}
         {tab === 'email'     && <EmailTab emails={emails} loading={emailLoading} onRefresh={loadEmails} vipCompanies={vipCompaniesMerged} loadError={emailHasError} />}
         {tab === 'calendar'  && <CalendarTab events={events} tasks={tasks} loadError={calendarHasError} />}
