@@ -1,186 +1,159 @@
-# Epics — Path to Production (v2, post Supabase audit)
+# Epics — Path to Production (v3, ambient-EA pivot)
 
-> Replaces v1. The v1 epics treated the project as if only the Next.js repo existed. After auditing the live Supabase project we now know:
-> - The classification pipeline already exists (it just isn't wired to the dashboard)
-> - The daily brief already exists (it just isn't scheduled or emailed)
-> - There's a runaway cron quietly burning money
+> Replaces v2. The v2 roadmap completed the critical path: the daily brief is generated and emailed, the runaway cron is fixed and the data cleaned, settings persist, and the back-of-house is fully source-controlled. Those epics are preserved below as the **shipped record**.
 >
-> See `docs/BRD.md` for the full ground-truth picture.
+> The 2026-06-27 product review (see `docs/BRD.md` v4) found that, even after those fixes, the dashboard had effectively **recreated Outlook** — a second inbox and a read-only calendar — while the genuine assistant value (brief, chat) was underdeveloped and the computed intelligence (follow-ups, sender patterns, 2,343 classified emails) sat unused. v3 pivots the product to an **ambient executive assistant**: the brief email, push nudges, chat, and a thin approval queue, with Mail/Calendar removed and the intelligence promoted to the engine.
+>
+> The active roadmap is now **Epics A → B → C → D → E**. They map 1:1 to `docs/BRD.md` §17.
 
-Critical path to "scheduled email brief in production": **Epic 0 → Epic 4 → Epic 2 → Epic 6**.
-
----
-
-## Epic 0 — Stop the runaway, clean up the data ✅ shipped 2026-05-03
-
-> Cron `sync-outlook-matrix` resumed at `*/15 * * * *` after the safety net is in place.
-
-**What landed:**
-1. Cron paused at the start of audit work (active=false).
-2. Dedup root cause fixed: new `ms-outlook-folders` queries `eisenhower_tasks` with `.in("source_email_id", messageIds)` instead of fetching the whole table and filtering in memory (PR #39 / #40 / consolidation).
-3. Partial unique index created: `ux_eisenhower_tasks_source_email_id ON eisenhower_tasks (source_email_id) WHERE source_email_id IS NOT NULL AND source_type = 'email'`. The DB itself now rejects duplicates.
-4. Historical duplicates removed — table went from 227,407 email-source rows to 0 (only manual rows survived). Then a fresh sync repopulated 57 distinct email tasks from 75 emails (13 consolidated by sender).
-5. AI provider migrated: Lovable Gemini → Anthropic Claude Haiku 4.5 (cheaper, more reliable, source-controlled).
-6. Idempotency confirmed via two consecutive manual triggers — second run created 0 tasks.
-7. Cron re-enabled 2026-05-03.
+Critical path to "trustworthy ambient EA in production": **Epic A → Epic B → Epic C → Epic D → Epic E.**
 
 ---
 
-## Epic 1 — Bridge dashboard ↔ back-of-house ✅ shipped 2026-05-03
+# Active roadmap (v4 ambient pivot)
 
-> Dashboard now reads the back-of-house schema instead of treating Graph as the single source of truth.
+## Epic A — Bulletproof + richer brief ⬜ top priority
 
-**Landed:**
-- **Mail tab AI classification** — `loadEmails` enriches Graph results with `email_processing_history.ai_category` (mapping DB values `do|plan|delegate|eliminate` onto dashboard `Email.ai_quadrant` `do|schedule|delegate|eliminate`, `plan → schedule`). Passes `ai_client_name` through. Existing `emailToQuadrant()` and `emailCategory()` consume the populated fields naturally. Defensive: enrichment failures fall through silently — Mail tab still renders with heuristic categorisation, no regression. Briefing footer shows "N of M emails AI-classified · K heuristic".
-- **Calendar caching** — `loadCalendar` reads `calendar_events` first (window: today through today+14, freshness < 2 hours). Falls back to live Graph when the cache is empty/stale (e.g. fresh OAuth, missed cron). New pg_cron `sync-calendar-30min` calls `ms-calendar?persist=true` for the 14-day window every 30 min. `ms-calendar` source pulled into `supabase/functions/ms-calendar/` (Epic 3 progress).
-- **Tasks `quadrant_override`** — `moveTask` sets `quadrant_override = true` on every manual drag and captures `ai_suggested_quadrant` (preserving the AI's original guess) the first time the user overrides. Cards display an `↻ override` badge with tooltip "AI originally suggested Q…".
-- **Briefing data-snapshot footer** — renders `data_snapshot` returned by `morning-brief` (`X Q1 · Y Q2 · Z events · …`) so the user sees what the brief was built from.
-- **Strategy Rocks (EOS)** — Briefing tab now displays the 7 rows in `strategy_rocks` with status pill (on track / at risk / off track) and percent-complete.
-- **Clients tab** — already done as part of Epic 4 (`vipCompaniesMerged` = manual ∪ SharePoint-synced; `vip_contacts` table is unused and can be dropped in a future cleanup).
+> The brief is now the primary surface. In an ambient model the user stops checking the inbox, so a missed brief is invisible — delivery reliability is non-negotiable.
 
-**Skipped (deferred until design refresh comes back from external UX/UI process):**
-- New tabs for **Follow-ups** (`follow_ups`, 0 rows) and **Decisions** (`core_decisions`, 0 rows) — no data + IA changes conflict with the in-flight redesign.
-- **Annual goals** display (`eos_annual_goals`, 6 rows) — same rationale as above.
-
-**Pre-flight blocker (separate from this PR):** `ms-auth` currently reports "Not connected to Microsoft" — the Vault `microsoft_refresh_token` has been invalidated. User must re-sign-in via the dashboard before `sync-calendar-30min` and `morning-brief-daily` can pull Graph data again. Code changes here still ship cleanly because the cache-read path degrades gracefully.
-
----
-
-## Epic 2 — Daily brief, generated and emailed by Claude ✅ shipped 2026-05-03
-
-> Single Edge Function `morning-brief` (Claude Sonnet 4.5) owns the whole pipeline: pulls EA + CRM + calendar data, generates the brief, persists to `ai_daily_briefs`, optionally renders to HTML and emails via Graph. pg_cron `morning-brief-daily` fires weekday mornings at 06:30 AEST. See `docs/CHANGELOG.md` (2026-05-03 entry) for the consolidation story and `supabase/functions/morning-brief/index.ts` for the source.
-
-**Why:** `daily-brief` already exists and works (the Gate 5 prompt is sophisticated). Two things are missing: (a) it's only triggered by the dashboard, never on a schedule; (b) it stores the brief but never delivers it.
+**Why:** Today the 06:30 send can silently stop (paused cron, or an invalidated Microsoft Vault token → no Graph → no brief). The self-alert email exists (Epic 6) but token failure still degrades quietly.
 
 **Scope**
-1. **Verify `microsoft_oauth_tokens` populates correctly.** Currently empty — see BRD §4. Do a fresh OAuth flow and confirm a row appears. If not, fix `ms-auth` `storeTokens`.
-2. **Add a `send-brief` Edge Function** that:
-   - Calls existing `daily-brief` (with `forceRefresh: false` so we use today's cache if it exists)
-   - Converts the markdown brief to HTML (use `marked` or similar)
-   - Calls Graph `/me/sendMail` to send to Richard's address (uses `ms-auth` to get token)
-   - Marks the brief as sent (new `sent_at` column on `ai_daily_briefs`)
-3. **Add pg_cron entry**:
-   ```sql
-   SELECT cron.schedule('daily-brief-send', '30 19 * * 1-5',  -- 06:30 Sydney AEST = 20:30 UTC
-     $$ SELECT net.http_post(url := '<send-brief-url>', headers := ..., body := '{}') $$);
-   ```
-4. **Settings UI** to control send time + days-of-week (writes to `user_preferences` after Epic 4).
-
-**What is NOT in scope:** redesigning the brief itself. The Gate 5 prompt is good.
+1. **Make delivery unmissable.** Harden the `morning-brief-daily` cron + `ms-auth` token path so the brief always sends; on token failure raise a **loud, user-visible alert** (self-email + in-app banner), never a silent skip.
+2. **End-of-day brief variant** — summarises what got handled and what rolls over.
+3. **Deep-links from the brief** — each surfaced item links into the Action Queue (to approve a drafted reply) or out to Outlook/CRM for the full artifact.
 
 **Acceptance criteria**
-- Brief lands in Richard's inbox at the configured time, weekdays only
-- Manual `curl` to `/send-brief` returns success in <30s with brief in body
-- `ai_daily_briefs.sent_at` populated
-- Skipping a day (e.g. weekend or paused) doesn't double-send
+- Brief lands weekday mornings; a token/cron failure produces a visible alert within the hour.
+- End-of-day variant sends and reflects the day's queue activity.
+- Brief items are tappable into the queue / source.
 
-**Dependencies:** Epic 0 (don't build on broken data), confirmed working `microsoft_oauth_tokens`.
-
-**Estimate:** 1–2 sessions.
+**Dependencies:** valid Microsoft Vault token (re-auth if invalidated). **Estimate:** 1–2 sessions.
 
 ---
 
-## Epic 3 — Version-control the back-of-house ✅ shipped 2026-05-03
+## Epic B — The Action Queue ⬜ core of the pivot
 
-> All 16 deployed Edge Functions are now source-controlled in `supabase/functions/<slug>/index.ts`. Every PR touching the back-of-house can be reviewed and rolled back via git.
+> Re-scope of the old Epic 1 "bridge dashboard ↔ back-of-house". Instead of wiring intelligence into tab widgets, the intelligence becomes a single prioritised queue of things needing approval.
 
-**Landed in this PR:**
-- Pulled the remaining 10 Edge Functions into the repo (the other 6 had landed earlier alongside their epics):
-  - `draft-reply`, `delete-outlook-email`, `fetch-email`, `active-prompt`, `sender-history`, `follow-ups`
-  - `improve-prompt` and `reimport-emails` — **both migrated from Lovable Gemini to Anthropic Claude before source-controlling**, so the codebase is now truly Lovable-free.
-  - `daily-brief` and `send-brief` 410 stubs — preserved in source for completeness (deletion candidates once unused for 7 days).
-
-**Out of scope (deferred to Epic 3.5 if needed):**
-- `supabase/migrations/<timestamp>_<name>.sql` — 38 migrations still live only in Supabase. Pulling these is mechanical but not blocking; rollback would happen via Supabase Dashboard rather than git for now.
-- `supabase/seed.sql` — clients/vips/prompts. Less critical given the live data is the canonical state.
-- Supabase CLI dev-dependency + `npm run` scripts. Deploy is currently via the Supabase MCP, which is fine for solo work.
-
-The acceptance criteria around CLI parity can be satisfied later if/when a second contributor joins.
-
----
-
-## Epic 4 — Settings to Supabase + VIP propagation (shrunk)
-
-**Why:** Settings (briefing time, focus block, VIP list) live in `localStorage` so:
-- They don't survive a device switch
-- The cron in Epic 2 can't read them
-- Editing the VIP list does nothing (the rest of the app uses the hardcoded `VIP_CLIENTS` constant)
-
-The `user_preferences` table (key/value, RLS open) and `vip_contacts` table both exist already.
+**Why:** The moat is the computed intelligence. `email_processing_history` (2,343 rows, ~22 consumed) and `follow_ups` (computed, shown as a hardcoded "none") are the obvious starting fuel.
 
 **Scope**
-1. Refactor SettingsTab to load/save from `user_preferences` (keys: `briefing_time`, `briefing_timezone`, `focus_start`, `focus_end`)
-2. Migrate VIP list to `vip_contacts` table
-3. Move `VIP_CLIENTS` constant out — replace with a `useVipContacts()` hook used by `emailCategory()`, `ClientsTab`, briefing prompt context
-4. One-time localStorage → Supabase migration on first dashboard load
+1. New **Today** tab = the Action Queue. Priority-ordered items, each with: one-line AI summary, classification tag, the drafted artifact inline (where relevant), and an "Open in Outlook/CRM" deep-link.
+2. **Item types:** drafted reply to approve (`draft-reply` + `fetch-email` for the body) · follow-up to send/snooze (`follow_ups`) · task to confirm/re-file (`eisenhower_tasks`, replacing the manual board) · stalled-deal flag · meeting prep.
+3. **Actions:** Approve (executes via the relevant Edge Function — send via Graph, archive via `delete-outlook-email`) · Edit (inline) · Dismiss · Snooze.
+4. **Consume the intelligence fully** — close the `email_processing_history` gap; surface `follow_ups`; feed `sender-history` confidence into prioritisation.
 
 **Acceptance criteria**
-- Open Settings on different device → values match
-- Add a new VIP → reflected immediately in Email tab and Clients tab
-- localStorage `pref_*` keys cleared after migration
+- Queue shows real items from the live intelligence (not heuristics), prioritised.
+- Approving a drafted reply sends + archives; dismiss/snooze behave.
+- `follow_ups` rows surface as queue items (no more hardcoded "none").
 
-**Dependencies:** none.
-
-**Estimate:** 1 session.
+**Dependencies:** Epic A (brief deep-links into the queue). **Estimate:** 3–4 sessions.
 
 ---
 
-## Epic 5 — Dashboard decomposition (carry forward)
+## Epic C — Proactive nudges / push notifications ⬜ not started
 
-Unchanged from v1. ~2,300-line `app/dashboard/page.tsx` → split each tab into its own file under `app/dashboard/_components/`, hooks under `app/dashboard/_hooks/`. No behavioural changes. Lands the prerequisite for parallel feature work and proper testing.
+> **Reverses the old v2 stance** ("push notifications replaced by email"). An ambient EA needs to reach the user at the moment something becomes actionable.
 
-**Estimate:** 1 session.
+**Scope**
+1. **Web Push channel** for the installed PWA (single-user subscription). Validate iOS PWA push constraints; email/Teams fallback if unreliable.
+2. **Nudge engine** — rules over the intelligence: new VIP/Q1 email with a drafted reply, follow-up threshold crossed, deal stalled, meeting imminent with prep ready.
+3. **Approve-from-notification** where the platform supports notification actions; otherwise deep-link to the queue.
+4. **Fatigue controls** — batching, severity thresholds, quiet hours bound to focus blocks (`user_preferences`). Suppressed items still appear in the queue + next brief (nothing dropped silently).
 
----
+**Acceptance criteria**
+- A qualifying event produces a nudge with an action; approving acts without a full app visit.
+- Quiet hours + batching demonstrably suppress noise without losing items.
 
-## Epic 6 — Quality & observability ✅ shipped 2026-05-03
-
-**Landed:**
-- `morning-brief` failure-alert email (silent failures are now loud). Wraps the main catch block, sends a red-themed HTML email to the user via Graph. Inner try/catch so a broken alert can never mask the original error.
-- `/api/health` Next.js route — JSON status of Supabase + today's brief + brief email delivery. HTTP 503 when degraded, suitable for any external uptime monitor.
-- `INFRASTRUCTURE.md` cron-runs audit query (`cron.job_run_details`).
-- **Sentry wired** for browser, server, and edge runtimes via `@sentry/nextjs` v10.51 (`instrumentation.ts`, `sentry.{client,server,edge}.config.ts`, `withSentryConfig` in `next.config.js`). Tunnel route `/monitoring` to bypass ad-blockers. DSN read from `NEXT_PUBLIC_SENTRY_DSN` env var; missing DSN → SDK no-ops gracefully.
-
-**Carried forward to Epic 5:**
-- Playwright smoke tests — better introduced after dashboard decomposition so tests target stable component boundaries.
-- `ms-outlook-folders` failure alerts — runs every 15 min, would need rate-limiting before adding.
-- Structured Edge Function logs — `console.log` is fine until volume grows.
+**Dependencies:** Epic B (the queue is the nudge's destination + action backend). **Estimate:** 2–3 sessions.
 
 ---
 
-## Epic 7 — Multi-tenant (deferred)
+## Epic D — Remove Mail & Calendar; collapse Tasks/Clients ⬜ not started
 
-Unchanged from v1. Only relevant if you want a second user. Most epics above will need revisiting (add `user_id` everywhere, switch RLS to `auth.uid()`, dynamic prompts, onboarding flow).
+> Done **after** B + C land, so the user never loses the ability to act on email during the transition.
+
+**Scope**
+1. **Remove the Mail tab** — Outlook is the inbox; the act-on-email path lives in the queue/nudges; deep-link to Outlook for full threads.
+2. **Remove the Calendar tab** — the brief carries today's schedule + meeting-prep nudges; full calendar opens in Outlook.
+3. **Collapse Tasks** — retire the drag-drop Eisenhower board; tasks surface as brief lines + "task-to-confirm" queue items.
+4. **Collapse Clients** — replace the widget with a brief section ("who's gone quiet") + a chat query.
+5. Reduce in-app IA to **Today · Chat · Settings**.
+
+**Acceptance criteria**
+- No Mail/Calendar tabs; no regression in the ability to reply/archive (now via the queue).
+- The dashboard file shrinks materially (this *is* most of the old "decompose the monolith" work).
+
+**Dependencies:** Epics B + C. **Estimate:** 1–2 sessions.
 
 ---
 
-## Out of scope
+## Epic E — Trust & recall safety net ⬜ not started
 
-- Calendar event creation / RSVP
-- Inbox search UI
-- Task recurrence
-- Push notifications (replaced by email in Epic 2)
-- Rebuilding the brief itself (Gate 5 is good)
-- Building a new email classifier (`email_processing_history` already does this — Epic 1 just consumes it)
+> The counterweight that makes removing the Mail tab safe. Without a second inbox to double-check, a miss is invisible — see `docs/BRD.md` §13.
+
+**Scope**
+1. **High recall over precision** — when unsure, surface; low-confidence classifications go to the queue for review, never dropped.
+2. **Explicit empty states** — "Nothing needs you" is a designed, affirmative state.
+3. **Auto-handled digest** — periodic "here's what I auto-archived/deprioritised" so the user can audit and correct.
+4. **Correctable intelligence** — marking a queue item's classification wrong feeds back (`email_processing_history` review fields / `sender-history`) so recall improves.
+
+**Acceptance criteria**
+- Auto-archive decisions are auditable, not invisible.
+- Correcting a classification measurably changes future surfacing.
+
+**Dependencies:** Epics B + D. **Estimate:** 2 sessions.
 
 ---
 
 ## Suggested order
 
 ```
-WEEK 1
-  Epic 0  — Stop the runaway (urgent, ~1 session)
-  Epic 4  — Settings persistence (~1 session)
-  Epic 2  — Scheduled email brief (~1–2 sessions)
+PHASE 1 — make the brief unmissable, make the intelligence actionable
+  Epic A  — Bulletproof + richer brief        (~1–2 sessions)
+  Epic B  — The Action Queue                  (~3–4 sessions)
 
-WEEK 2
-  Epic 1  — Bridge dashboard ↔ back-of-house (~2–3 sessions)
-  Epic 3  — Version-control back-of-house (~1 session)
+PHASE 2 — go ambient
+  Epic C  — Proactive nudges / push           (~2–3 sessions)
+  Epic D  — Remove Mail/Calendar; collapse    (~1–2 sessions)
 
-WEEK 3+ (as needed)
-  Epic 5  — Decompose dashboard
-  Epic 6  — Tests + observability
+PHASE 3 — earn the trust the model requires
+  Epic E  — Trust & recall safety net         (~2 sessions)
 
 LATER
-  Epic 7  — Multi-tenant
+  Multi-tenant (deferred — see shipped record below)
 ```
+
+---
+
+## Out of scope (revised for v4)
+
+- Rebuilding Outlook's inbox or calendar in-app (the whole point of the pivot — deep-link instead)
+- Inbox search UI (Outlook owns it)
+- Calendar event creation / RSVP (Outlook owns it)
+- Task recurrence
+- Building a new email classifier (`email_processing_history` already classifies — Epic B consumes it)
+- Multi-tenant (deferred)
+
+*(Note: "push notifications" is no longer out of scope — it returns as Epic C.)*
+
+---
+
+# Shipped record (v2 roadmap — completed 2026-05-03 → 05-04)
+
+Condensed; full detail in `docs/CHANGELOG.md`. Some of this is now superseded by the v4 pivot — flagged inline.
+
+| Epic | Outcome | v4 status |
+|---|---|---|
+| **0 — Stop the runaway, clean data** ✅ | Paused/fixed the `sync-outlook-matrix` cron; dedup root cause + partial unique index `ux_eisenhower_tasks_source_email_id`; cleaned 227,407 → distinct rows; migrated classifier to Claude Haiku 4.5; cron re-enabled. | Foundational — carries. |
+| **1 — Bridge dashboard ↔ back-of-house** ✅ (partial) | Mail tab enriched from `email_processing_history` (~22 rows consumed); `calendar_events` caching + `sync-calendar-30min`; tasks `quadrant_override`; briefing data-snapshot footer; Strategy Rocks display. | **Superseded by Epic B** — the bridge becomes the Action Queue. Mail/Calendar wiring removed in Epic D. |
+| **2 — Daily brief generated + emailed** ✅ | `morning-brief` (Claude Sonnet 4.5) owns generate→persist→email; pg_cron `morning-brief-daily` 06:30 AEST weekdays; `ai_daily_briefs.sent_at`. | **Extended by Epic A** (reliability + end-of-day + deep-links). |
+| **3 — Version-control the back-of-house** ✅ | All 16 Edge Functions source-controlled; Lovable fully removed (last Gemini callers migrated to Claude). | Carries. |
+| **4 — Settings to Supabase + VIP propagation** ✅ | Settings/VIP lists persisted to `user_preferences`; `vipCompaniesMerged` (manual ∪ SharePoint-synced); localStorage migrated. | Carries (focus hours now also drive nudge quiet hours, Epic C). |
+| **5 — Dashboard decomposition** | Planned split of the ~2,300-line `page.tsx`. | **Downgraded** — the v4 shrink (Epic D) absorbs most of it. |
+| **6 — Quality & observability** ✅ (partial) | `morning-brief` failure-alert email; `/api/health` (503 on degraded); Sentry wired (browser/server/edge), gated on `NEXT_PUBLIC_SENTRY_DSN`. | Carries; Playwright + structured logs still pending. |
+| **7 — Multi-tenant** | Add `user_id`, RLS via `auth.uid()`, dynamic prompts, onboarding. | Still **deferred**. |
+
+**Standing pre-flight note:** if `ms-auth` reports "Not connected to Microsoft", the Vault `microsoft_refresh_token` has been invalidated — re-sign-in via the dashboard before crons can pull Graph data. Epic A makes this failure loud.
