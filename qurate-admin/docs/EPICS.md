@@ -108,6 +108,17 @@ Critical path to "trustworthy ambient EA in production": **Epic A → Epic B →
 
 ---
 
+## Small carry-forwards (reconciled from Task Master, 2026-06-27)
+
+> The Feb-2026 Task Master backlog (10 tasks, `.taskmaster/`) was reconciled against this v4 BRD + the code and **retired** — 4 done, 4 cancelled as superseded by the ambient pivot. Two items carried forward as small enhancements (not the original full-feature scope):
+
+1. **Revenue status line in the brief** (was BR-09 "Revenue Tracker"). The standalone dashboard is obsolete (no Clients tab in v4); the live need is a one-line "$500k progress" status in the daily brief. Folds into **Epic A** brief enrichment.
+2. **Surface API cost in the auto-handled digest** (was ST-07 "API Cost Dashboard"). `api_cost_log` is already populated by `chat` + `morning-brief`; no Settings dashboard needed — fold a spend line into the **Epic E** auto-handled digest.
+
+Also noted (non-blocking): Action Queue snooze is in-memory only; persisting it across reload is a tiny optional follow-up to **Epic B**.
+
+---
+
 ## Suggested order
 
 ```

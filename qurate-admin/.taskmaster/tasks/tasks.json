@@ -1,0 +1,742 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": "1",
+        "title": "Implement Follow-ups Overdue Detection",
+        "description": "Build system to track emails sent >48 hours ago with no reply and surface them in the morning briefing risk alert panel",
+        "details": "Create a new Supabase Edge Function 'follow-ups' that queries Microsoft Graph API for sent emails from the last 7 days, cross-references with received emails to identify threads without replies after 48 hours. Store results in a new table 'follow_ups' with fields: email_id, sent_date, subject, recipient, days_overdue. Update the Brief component to fetch and display overdue follow-ups count in the risk alert panel. Add a detailed view showing which specific emails need follow-up attention.",
+        "testStrategy": "Test by sending test emails to external accounts, waiting 48+ hours, and verifying they appear in the overdue list. Test edge cases like email threads with multiple recipients and auto-replies.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create Supabase follow_ups table schema",
+            "description": "Design and create the database table to store overdue follow-up email data",
+            "dependencies": [],
+            "details": "Create a new table 'follow_ups' in Supabase with fields: email_id (text), sent_date (timestamp), subject (text), recipient (text), days_overdue (integer). Add appropriate indexes for performance and set up RLS policies for data security.",
+            "status": "pending",
+            "testStrategy": "Test table creation, verify field types and constraints, test RLS policies with different user roles",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Build Supabase Edge Function for email analysis",
+            "description": "Create the 'follow-ups' Edge Function to query Microsoft Graph API and identify overdue emails",
+            "dependencies": [
+              1
+            ],
+            "details": "Implement Edge Function that queries Microsoft Graph API for sent emails from last 7 days, cross-references with received emails to identify threads without replies after 48 hours. Process email threads to determine conversation status and calculate days overdue. Store results in follow_ups table.",
+            "status": "pending",
+            "testStrategy": "Test with various email scenarios including single emails, threaded conversations, and auto-replies. Verify 48-hour threshold calculation accuracy",
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Update Brief component risk alert panel",
+            "description": "Modify the Brief component to fetch and display overdue follow-ups count in the risk alert panel",
+            "dependencies": [
+              2
+            ],
+            "details": "Add API call to fetch overdue follow-ups count from the database. Update the risk alert panel UI to display the count with appropriate styling using teal/gold brand colors. Include click handler to navigate to detailed view.",
+            "status": "pending",
+            "testStrategy": "Test count display accuracy, verify UI styling matches brand guidelines, test click navigation functionality",
+            "parentId": "undefined"
+          },
+          {
+            "id": 4,
+            "title": "Create detailed follow-ups view component",
+            "description": "Build a detailed view showing specific emails that need follow-up attention",
+            "dependencies": [
+              3
+            ],
+            "details": "Create a new component that displays a list of overdue follow-ups with email subject, recipient, sent date, and days overdue. Include sorting and filtering options. Add action buttons for quick email composition or marking as resolved.",
+            "status": "pending",
+            "testStrategy": "Test list display with various data sets, verify sorting and filtering functionality, test action buttons integration",
+            "parentId": "undefined"
+          },
+          {
+            "id": 5,
+            "title": "Integrate follow-ups system with daily briefing",
+            "description": "Add overdue follow-ups information to the morning briefing system",
+            "dependencies": [
+              4
+            ],
+            "details": "Modify the daily briefing logic to include overdue follow-ups data. Display summary statistics and highlight most critical overdue items. Ensure the briefing updates automatically when new overdue items are detected.",
+            "status": "pending",
+            "testStrategy": "Test briefing integration with different follow-up scenarios, verify automatic updates, test briefing display with zero and multiple overdue items",
+            "parentId": "undefined"
+          }
+        ],
+        "updatedAt": "2026-06-27T10:00:41.996Z"
+      },
+      {
+        "id": "2",
+        "title": "Build Post-Meeting Action Capture System",
+        "description": "Implement functionality to capture meeting actions and draft follow-up emails after calendar events",
+        "details": "Add a 'Meeting Actions' button to calendar event details that opens a modal for capturing: action items, decisions made, next steps, and attendee assignments. Store in new table 'meeting_actions' with fields: event_id, actions_json, created_at, follow_up_sent. Integrate with the draft-reply Edge Function to generate contextual follow-up emails based on captured actions. Add quick access from the Calendar tab and integrate into daily briefing for meetings from previous day.",
+        "testStrategy": "Test with various meeting types, verify action capture persists correctly, test follow-up email generation quality, and ensure proper attendee list handling from Graph API.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "cancelled",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create meeting_actions database table and schema",
+            "description": "Set up the database infrastructure to store meeting action items and related data",
+            "dependencies": [],
+            "details": "Create a new table 'meeting_actions' in Supabase with fields: id (primary key), event_id (foreign key to calendar events), actions_json (JSONB field to store action items, decisions, next steps, and attendee assignments), created_at (timestamp), follow_up_sent (boolean flag). Set up proper indexes and constraints for optimal query performance.",
+            "status": "pending",
+            "testStrategy": "Test table creation, verify field types and constraints, test data insertion and retrieval operations",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Build Meeting Actions modal component",
+            "description": "Create the user interface for capturing meeting actions and decisions",
+            "dependencies": [
+              1
+            ],
+            "details": "Develop a React modal component with form fields for capturing action items, decisions made, next steps, and attendee assignments. Include input validation, dynamic field addition/removal, and proper state management. Style with Tailwind CSS using the teal/gold brand colors. Ensure responsive design and accessibility compliance.",
+            "status": "pending",
+            "testStrategy": "Test modal opening/closing, form validation, data capture accuracy, and responsive behavior across different screen sizes",
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Add Meeting Actions button to calendar event details",
+            "description": "Integrate the Meeting Actions functionality into the existing calendar interface",
+            "dependencies": [
+              2
+            ],
+            "details": "Add a 'Meeting Actions' button to the calendar event details view that triggers the Meeting Actions modal. Implement the connection between calendar events and the actions capture system. Ensure the button appears only for appropriate event types and handle proper event ID passing to the modal component.",
+            "status": "pending",
+            "testStrategy": "Test button visibility and functionality across different event types, verify proper event ID handling, and test integration with existing calendar components",
+            "parentId": "undefined"
+          },
+          {
+            "id": 4,
+            "title": "Integrate with draft-reply Edge Function for follow-up emails",
+            "description": "Connect the captured meeting actions with the email generation system",
+            "dependencies": [
+              3
+            ],
+            "details": "Modify the existing draft-reply Edge Function to accept meeting actions data and generate contextual follow-up emails. Create API endpoints to retrieve meeting actions and format them for email generation. Implement logic to include action items, decisions, and next steps in the generated email content. Add attendee list handling from Microsoft Graph API.",
+            "status": "pending",
+            "testStrategy": "Test email generation with various meeting action scenarios, verify attendee list accuracy, test email content quality and formatting, and ensure proper API integration",
+            "parentId": "undefined"
+          },
+          {
+            "id": 5,
+            "title": "Add quick access and daily briefing integration",
+            "description": "Provide easy access to meeting actions from Calendar tab and integrate into daily briefing",
+            "dependencies": [
+              4
+            ],
+            "details": "Add quick access links in the Calendar tab to view and manage meeting actions. Integrate meeting actions from previous day into the daily briefing feature, showing completed meetings with captured actions and pending follow-ups. Update the briefing generation logic to include meeting action summaries and follow-up reminders.",
+            "status": "pending",
+            "testStrategy": "Test quick access functionality from Calendar tab, verify daily briefing integration shows correct previous day meetings, and test follow-up tracking accuracy",
+            "parentId": "undefined"
+          }
+        ],
+        "updatedAt": "2026-06-27T10:00:54.651Z"
+      },
+      {
+        "id": "3",
+        "title": "Create Revenue Tracker Dashboard",
+        "description": "Build revenue tracking system showing progress toward $500k retainer target with client-level breakdown",
+        "details": "Create new table 'revenue_tracking' with fields: client_name, retainer_amount, start_date, end_date, status, payment_schedule. Build a revenue dashboard component showing: total contracted revenue, monthly recurring revenue, pipeline value, and progress toward $500k goal. Add client-level revenue cards in the Clients tab. Include visual progress bars using Tailwind CSS and integrate into morning briefing. Store revenue data in localStorage initially, with future database migration path.",
+        "testStrategy": "Test with sample client data, verify calculations are accurate, test progress visualization updates, and ensure data persists across sessions.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "cancelled",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create revenue_tracking database table",
+            "description": "Set up the database schema for storing revenue tracking data with all required fields",
+            "dependencies": [],
+            "details": "Create new table 'revenue_tracking' in Supabase with fields: client_name (text), retainer_amount (decimal), start_date (date), end_date (date), status (enum: active/pending/completed), payment_schedule (text). Add appropriate indexes and constraints. Set up RLS policies for data security.",
+            "status": "pending",
+            "testStrategy": "Test table creation, verify all field types and constraints work correctly, test data insertion and retrieval operations",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Build revenue dashboard component",
+            "description": "Create the main dashboard component displaying revenue metrics and progress visualization",
+            "dependencies": [
+              1
+            ],
+            "details": "Build React component showing total contracted revenue, monthly recurring revenue, pipeline value, and progress toward $500k goal. Include visual progress bars using Tailwind CSS. Implement calculations for revenue aggregation and percentage completion. Add responsive design for mobile and desktop views.",
+            "status": "pending",
+            "testStrategy": "Test with sample revenue data, verify all calculations are accurate, test responsive design across devices, validate progress bar animations",
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Add client-level revenue cards to Clients tab",
+            "description": "Integrate revenue information display within the existing Clients tab interface",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Extend the Clients tab to show individual client revenue cards displaying retainer amount, contract dates, payment status, and individual progress. Add filtering and sorting options by revenue amount and contract status. Include quick actions for updating payment status and contract details.",
+            "status": "pending",
+            "testStrategy": "Test client revenue card display, verify data accuracy per client, test filtering and sorting functionality, validate quick action updates",
+            "parentId": "undefined"
+          },
+          {
+            "id": 4,
+            "title": "Implement localStorage data management",
+            "description": "Set up local storage system for revenue data with future database migration capability",
+            "dependencies": [
+              1
+            ],
+            "details": "Create localStorage service for storing revenue data locally with proper data validation and serialization. Implement CRUD operations for revenue records. Design data structure to be compatible with future database migration. Add data backup and restore functionality. Include data synchronization logic for when database becomes available.",
+            "status": "pending",
+            "testStrategy": "Test data persistence across browser sessions, verify CRUD operations work correctly, test data validation and error handling, ensure data structure compatibility",
+            "parentId": "undefined"
+          },
+          {
+            "id": 5,
+            "title": "Integrate revenue tracker into morning briefing",
+            "description": "Add revenue tracking summary and alerts to the daily morning briefing component",
+            "dependencies": [
+              2,
+              4
+            ],
+            "details": "Extend the morning briefing to include revenue summary showing current month progress, upcoming payment due dates, and alerts for contracts nearing expiration. Add revenue milestone notifications and goal achievement updates. Include visual indicators for revenue health status using color-coded alerts.",
+            "status": "pending",
+            "testStrategy": "Test briefing integration displays correctly, verify revenue calculations in briefing context, test alert triggers for various scenarios, validate visual indicators and notifications",
+            "parentId": "undefined"
+          }
+        ],
+        "updatedAt": "2026-06-27T10:00:54.666Z"
+      },
+      {
+        "id": "4",
+        "title": "Implement Quarterly Rocks Tracking",
+        "description": "Add EOS Quarterly Rocks tracking system integrated with the Eisenhower Matrix",
+        "details": "Create new table 'quarterly_rocks' with fields: id, title, description, target_date, progress_percentage, status, related_tasks. Add a Rocks section to the Tasks tab showing current quarter's rocks with progress bars. Allow linking existing Eisenhower tasks to specific rocks. Add rock progress updates via the Chat interface. Include rocks status in daily briefing and create a dedicated rocks review mode for weekly L10 meetings.",
+        "testStrategy": "Test rock creation, task linking functionality, progress tracking accuracy, and integration with existing task management. Verify quarterly rollover handling.",
+        "priority": "medium",
+        "dependencies": [],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create quarterly_rocks database table and schema",
+            "description": "Design and implement the database table structure for storing quarterly rocks data",
+            "dependencies": [],
+            "details": "Create new Supabase table 'quarterly_rocks' with fields: id (primary key), title (varchar), description (text), target_date (date), progress_percentage (integer 0-100), status (enum: active, completed, cancelled), related_tasks (jsonb array), created_at, updated_at. Set up proper indexes and constraints. Add RLS policies for user access control.",
+            "status": "pending",
+            "testStrategy": "Test table creation, data insertion, and constraint validation. Verify RLS policies work correctly for different user roles.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Build Rocks section UI component for Tasks tab",
+            "description": "Create the user interface component to display quarterly rocks with progress visualization",
+            "dependencies": [
+              1
+            ],
+            "details": "Add a new 'Rocks' section to the Tasks tab showing current quarter's rocks. Implement progress bars using Tailwind CSS with teal/gold brand colors. Include rock title, description, target date, and progress percentage. Add buttons for editing rocks and viewing linked tasks. Ensure responsive design and proper loading states.",
+            "status": "pending",
+            "testStrategy": "Test UI rendering with various rock data, verify progress bars display correctly, test responsive behavior on different screen sizes.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Implement rock-task linking functionality",
+            "description": "Build the system to link existing Eisenhower Matrix tasks to specific quarterly rocks",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Add a dropdown/selector in task creation/editing forms to associate tasks with rocks. Update the quarterly_rocks table's related_tasks field when tasks are linked. Create a view showing all tasks linked to each rock. Implement unlinking functionality and handle cascading updates when tasks are deleted.",
+            "status": "pending",
+            "testStrategy": "Test linking tasks to rocks, verify data consistency, test unlinking functionality, and ensure proper handling of deleted tasks.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 4,
+            "title": "Add rock progress updates via Chat interface",
+            "description": "Integrate quarterly rocks progress tracking with the AI chat system",
+            "dependencies": [
+              1,
+              3
+            ],
+            "details": "Extend the AI chat interface to recognize rock progress update commands. Allow users to update progress percentages and status through natural language. Parse commands like 'update rock progress to 75%' or 'mark rock as completed'. Store updates in the database and provide confirmation messages. Add chat commands for viewing rock status and linked tasks.",
+            "status": "pending",
+            "testStrategy": "Test various natural language commands for updating rock progress, verify database updates occur correctly, test edge cases and error handling.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 5,
+            "title": "Integrate rocks into daily briefing and L10 review mode",
+            "description": "Add quarterly rocks status to daily briefing and create dedicated rocks review functionality",
+            "dependencies": [
+              1,
+              2,
+              4
+            ],
+            "details": "Update the Brief component to include a rocks status section showing progress on current quarter's rocks. Add rocks behind schedule to the risk alert panel. Create a dedicated 'Rocks Review' mode for weekly L10 meetings showing detailed progress, linked tasks completion, and recommendations. Include quarterly rollover handling to archive completed quarters and set up new ones.",
+            "status": "pending",
+            "testStrategy": "Test rocks display in daily briefing, verify risk alerts for behind-schedule rocks, test L10 review mode functionality, and validate quarterly rollover process.",
+            "parentId": "undefined"
+          }
+        ],
+        "updatedAt": "2026-06-27T10:00:42.027Z"
+      },
+      {
+        "id": "5",
+        "title": "Build End-of-Day Summary Feature",
+        "description": "Create automated end-of-day summary showing accomplishments, pending items, and tomorrow's priorities",
+        "details": "Add end-of-day summary generation triggered at 6 PM AEST or manually via Chat. Summary includes: completed tasks by quadrant, emails processed, meetings attended with captured actions, overdue follow-ups, and AI-generated priorities for tomorrow. Store summaries in 'daily_summaries' table. Add toggle in Brief tab to view previous day's summary. Integrate with the chat Edge Function to generate contextual insights based on the day's activities.",
+        "testStrategy": "Test summary generation at different times, verify data accuracy across all integrated systems, test manual trigger functionality, and validate AI-generated insights quality.",
+        "priority": "medium",
+        "dependencies": [
+          "1",
+          "2"
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create daily_summaries database table and schema",
+            "description": "Set up the database infrastructure to store end-of-day summaries with proper fields and relationships",
+            "dependencies": [],
+            "details": "Create 'daily_summaries' table in Supabase with fields: id, date, completed_tasks_by_quadrant (JSON), emails_processed_count, meetings_attended (JSON), overdue_followups (JSON), ai_generated_priorities (JSON), created_at, updated_at. Set up proper indexes and RLS policies for data access.",
+            "status": "pending",
+            "testStrategy": "Test table creation, verify field types and constraints, test data insertion and retrieval operations",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Build data aggregation service for daily activities",
+            "description": "Create service to collect and aggregate data from tasks, emails, meetings, and follow-ups for summary generation",
+            "dependencies": [
+              1
+            ],
+            "details": "Implement data collection functions that query completed tasks by Eisenhower quadrant, count processed emails, extract meeting data with captured actions, identify overdue follow-ups. Create aggregation logic to compile this data into a structured format for summary generation.",
+            "status": "pending",
+            "testStrategy": "Test data collection from each source, verify aggregation accuracy, test with various data scenarios and edge cases",
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Implement automated 6 PM AEST trigger system",
+            "description": "Set up automated scheduling system to trigger end-of-day summary generation at 6 PM AEST daily",
+            "dependencies": [
+              2
+            ],
+            "details": "Create Supabase Edge Function with cron job or scheduled trigger for 6 PM AEST (considering daylight saving). Implement timezone handling and ensure reliable execution. Add logging and error handling for failed executions. Include mechanism to prevent duplicate summaries for the same day.",
+            "status": "pending",
+            "testStrategy": "Test trigger timing accuracy, verify timezone handling, test failure scenarios and recovery mechanisms",
+            "parentId": "undefined"
+          },
+          {
+            "id": 4,
+            "title": "Integrate AI-powered insights generation with chat Edge Function",
+            "description": "Connect with existing chat Edge Function to generate contextual insights and tomorrow's priorities based on daily activities",
+            "dependencies": [
+              2
+            ],
+            "details": "Extend the chat Edge Function to accept daily activity data and generate AI-powered insights about productivity patterns, accomplishments, and intelligent priority suggestions for the next day. Implement prompt engineering for consistent, actionable insights generation.",
+            "status": "pending",
+            "testStrategy": "Test AI insight quality and relevance, verify integration with chat function, test with various activity patterns and data volumes",
+            "parentId": "undefined"
+          },
+          {
+            "id": 5,
+            "title": "Build UI components for summary display and manual triggering",
+            "description": "Create user interface components for displaying summaries in Brief tab and enabling manual summary generation via Chat",
+            "dependencies": [
+              3,
+              4
+            ],
+            "details": "Add toggle in Brief tab to view previous day's summary with formatted display of all summary components. Implement manual trigger functionality in Chat interface with command recognition. Create responsive summary layout showing completed tasks, email stats, meeting highlights, and AI-generated priorities.",
+            "status": "pending",
+            "testStrategy": "Test UI responsiveness and data display accuracy, verify manual trigger functionality, test summary navigation and viewing experience",
+            "parentId": "undefined"
+          }
+        ],
+        "updatedAt": "2026-06-27T10:00:42.036Z"
+      },
+      {
+        "id": "6",
+        "title": "Add Email Snooze Functionality",
+        "description": "Implement email snooze feature allowing users to temporarily hide emails and resurface them at specified times",
+        "details": "Create 'snoozed_emails' table with fields: email_id, snooze_until, created_at, user_id. Add snooze button to email detail view with preset options (1 hour, tomorrow 9 AM, next week). Modify email fetching logic to filter out snoozed emails until their snooze time expires. Add snoozed emails section in Mail tab. Implement background job via Supabase Edge Function to check for expired snoozes and resurface emails. Add snooze status indicator in email list view.",
+        "testStrategy": "Test snooze functionality with various time intervals, verify emails reappear at correct times, test timezone handling for AEST, and ensure snoozed emails don't appear in other views.",
+        "priority": "medium",
+        "dependencies": [],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create snoozed_emails database table",
+            "description": "Set up the database schema for storing snoozed email information",
+            "dependencies": [],
+            "details": "Create 'snoozed_emails' table in Supabase with fields: email_id (foreign key), snooze_until (timestamp), created_at (timestamp), user_id (foreign key). Add proper indexes for efficient querying and foreign key constraints to maintain data integrity.",
+            "status": "pending",
+            "testStrategy": "Test table creation, verify field types and constraints, test data insertion and retrieval operations",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Add snooze button to email detail view",
+            "description": "Implement UI component for snoozing emails with preset time options",
+            "dependencies": [
+              1
+            ],
+            "details": "Add snooze button to email detail view with dropdown menu containing preset options: 1 hour, tomorrow 9 AM, next week. Handle timezone conversion for AEST. Create snooze action handler that inserts record into snoozed_emails table and updates UI state to hide the email.",
+            "status": "pending",
+            "testStrategy": "Test all preset time options, verify timezone handling for AEST, test UI state updates and button interactions",
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Modify email fetching logic to filter snoozed emails",
+            "description": "Update email queries to exclude snoozed emails until their snooze time expires",
+            "dependencies": [
+              1
+            ],
+            "details": "Modify existing email fetching functions to join with snoozed_emails table and filter out emails where snooze_until is greater than current timestamp. Update email list components to handle filtered results and maintain proper pagination.",
+            "status": "pending",
+            "testStrategy": "Test email filtering accuracy, verify snoozed emails don't appear in main inbox, test pagination with filtered results",
+            "parentId": "undefined"
+          },
+          {
+            "id": 4,
+            "title": "Create snoozed emails section in Mail tab",
+            "description": "Add dedicated section to display currently snoozed emails with unsnooze functionality",
+            "dependencies": [
+              2,
+              3
+            ],
+            "details": "Add new snoozed emails section in Mail tab showing all currently snoozed emails with snooze expiration times. Include unsnooze button for each email and display snooze status indicators. Implement real-time updates when emails become unsnoozed.",
+            "status": "pending",
+            "testStrategy": "Test snoozed emails display, verify unsnooze functionality, test real-time updates and status indicators",
+            "parentId": "undefined"
+          },
+          {
+            "id": 5,
+            "title": "Implement background job for expired snooze detection",
+            "description": "Create Supabase Edge Function to automatically resurface emails when snooze time expires",
+            "dependencies": [
+              1,
+              3
+            ],
+            "details": "Create Supabase Edge Function that runs periodically to check for expired snoozes (snooze_until < current timestamp). Remove expired records from snoozed_emails table and trigger email list refresh. Set up proper error handling and logging for the background job.",
+            "status": "pending",
+            "testStrategy": "Test background job execution, verify expired snooze detection accuracy, test automatic email resurfacing and error handling",
+            "parentId": "undefined"
+          }
+        ],
+        "updatedAt": "2026-06-27T10:00:42.044Z"
+      },
+      {
+        "id": "7",
+        "title": "Implement Command Palette (Cmd+K)",
+        "description": "Build keyboard-driven command palette for quick navigation and actions throughout the application",
+        "details": "Create a modal command palette component triggered by Cmd+K (Mac) or Ctrl+K (Windows). Include commands for: navigation between tabs, quick task creation, email actions, AI chat shortcuts, and settings access. Implement fuzzy search functionality for command filtering. Add keyboard shortcuts display and help section. Style with Tailwind CSS using teal/gold brand colors. Ensure proper focus management and accessibility compliance.",
+        "testStrategy": "Test keyboard shortcuts across different browsers and operating systems, verify fuzzy search accuracy, test command execution, and ensure proper modal behavior and focus management.",
+        "priority": "low",
+        "dependencies": [],
+        "status": "cancelled",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create Command Palette Modal Component",
+            "description": "Build the foundational modal component for the command palette with proper keyboard trigger handling",
+            "dependencies": [],
+            "details": "Create a React modal component that opens/closes with Cmd+K (Mac) or Ctrl+K (Windows). Implement proper z-index layering, backdrop click handling, and escape key dismissal. Set up the basic modal structure with Tailwind CSS styling using teal/gold brand colors. Include proper focus trapping and initial focus management.",
+            "status": "pending",
+            "testStrategy": "Test keyboard shortcuts across different browsers and operating systems, verify modal opens/closes correctly, test focus management and accessibility compliance",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Implement Command Registry System",
+            "description": "Create a centralized system to register and manage all available commands for the palette",
+            "dependencies": [
+              1
+            ],
+            "details": "Build a command registry that stores all available commands with their metadata (title, description, action, category, keywords). Include commands for navigation between tabs, quick task creation, email actions, AI chat shortcuts, and settings access. Create a structured command interface with proper typing and categorization.",
+            "status": "pending",
+            "testStrategy": "Test command registration, verify all required commands are available, test command execution and proper categorization",
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Add Fuzzy Search Functionality",
+            "description": "Implement fuzzy search algorithm to filter commands based on user input with intelligent matching",
+            "dependencies": [
+              2
+            ],
+            "details": "Integrate a fuzzy search library (like Fuse.js) to enable intelligent command filtering. Implement search across command titles, descriptions, and keywords. Add search result ranking and highlighting of matched text. Include debounced search input to optimize performance and provide instant feedback.",
+            "status": "pending",
+            "testStrategy": "Test fuzzy search accuracy with various input patterns, verify search performance with large command sets, test result ranking and highlighting",
+            "parentId": "undefined"
+          },
+          {
+            "id": 4,
+            "title": "Build Command List UI with Keyboard Navigation",
+            "description": "Create the command list interface with keyboard navigation and visual feedback for user interaction",
+            "dependencies": [
+              3
+            ],
+            "details": "Build the command list component with proper keyboard navigation (arrow keys, enter to execute). Implement visual highlighting for selected commands, command categories, and keyboard shortcuts display. Add proper ARIA labels and accessibility attributes. Style with Tailwind CSS using brand colors and ensure responsive design.",
+            "status": "pending",
+            "testStrategy": "Test keyboard navigation functionality, verify visual feedback and highlighting, test accessibility compliance and screen reader compatibility",
+            "parentId": "undefined"
+          },
+          {
+            "id": 5,
+            "title": "Integrate Help Section and Command Execution",
+            "description": "Add help section with keyboard shortcuts reference and implement command execution system",
+            "dependencies": [
+              4
+            ],
+            "details": "Create a help section showing available keyboard shortcuts and usage tips. Implement command execution system that properly routes to different parts of the application. Add error handling for failed command execution and user feedback. Include command history and recent commands functionality for improved user experience.",
+            "status": "pending",
+            "testStrategy": "Test command execution across all registered commands, verify help section accuracy, test error handling and user feedback, verify command history functionality",
+            "parentId": "undefined"
+          }
+        ],
+        "updatedAt": "2026-06-27T10:00:54.675Z"
+      },
+      {
+        "id": "8",
+        "title": "Create Auto-Skip Email Rules Engine",
+        "description": "Build configurable email filtering system to automatically categorize or skip marketing, LinkedIn, and notification emails",
+        "details": "Create 'email_rules' table with fields: rule_name, sender_pattern, subject_pattern, action (skip/categorize), priority. Build rules management interface in Settings tab allowing users to create, edit, and delete rules. Implement rule matching logic in email fetching process. Add predefined rules for common marketing patterns, LinkedIn notifications, and automated emails. Include rule testing functionality and statistics on emails processed by each rule.",
+        "testStrategy": "Test rule creation and editing, verify pattern matching accuracy, test rule priority handling, and ensure rules don't accidentally filter important emails. Test with various email types and senders.",
+        "priority": "low",
+        "dependencies": [],
+        "status": "cancelled",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create email_rules database table",
+            "description": "Design and implement the email_rules table schema with all required fields for the filtering system",
+            "dependencies": [],
+            "details": "Create 'email_rules' table in Supabase with fields: id (primary key), rule_name (varchar), sender_pattern (text), subject_pattern (text), action (enum: skip/categorize), priority (integer), created_at, updated_at. Add appropriate indexes for pattern matching performance and ensure proper data validation constraints.",
+            "status": "pending",
+            "testStrategy": "Test table creation, verify all field constraints work correctly, test data insertion and retrieval operations",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Build rules management interface in Settings tab",
+            "description": "Create user interface for managing email filtering rules with CRUD operations",
+            "dependencies": [
+              1
+            ],
+            "details": "Add a new section to the Settings tab with a rules management interface. Include forms for creating/editing rules with fields for rule name, sender pattern, subject pattern, action selection, and priority. Add a rules list view with edit/delete buttons, search functionality, and rule status indicators. Use Tailwind CSS for styling and ensure responsive design.",
+            "status": "pending",
+            "testStrategy": "Test rule creation, editing, and deletion workflows. Verify form validation, test search functionality, and ensure UI is responsive across devices",
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Implement rule matching logic in email processing",
+            "description": "Build the core engine that applies email rules during the email fetching process",
+            "dependencies": [
+              1
+            ],
+            "details": "Create rule matching algorithm that evaluates incoming emails against defined patterns. Implement regex pattern matching for sender and subject fields, handle rule priority ordering, and apply appropriate actions (skip/categorize). Integrate this logic into the existing email fetching process and ensure proper error handling for malformed patterns.",
+            "status": "pending",
+            "testStrategy": "Test pattern matching accuracy with various email formats, verify rule priority handling works correctly, test with edge cases like empty patterns or special characters",
+            "parentId": "undefined"
+          },
+          {
+            "id": 4,
+            "title": "Add predefined rules for common email types",
+            "description": "Create default rule set for marketing emails, LinkedIn notifications, and automated messages",
+            "dependencies": [
+              2,
+              3
+            ],
+            "details": "Define and implement predefined rules for common email patterns including: marketing emails (unsubscribe links, promotional keywords), LinkedIn notifications (noreply@linkedin.com, notification patterns), automated emails (no-reply addresses, system-generated subjects). Create a seed data migration to populate these rules and allow users to enable/disable them through the interface.",
+            "status": "pending",
+            "testStrategy": "Test predefined rules against real email samples, verify they don't accidentally filter important emails, test enable/disable functionality for default rules",
+            "parentId": "undefined"
+          },
+          {
+            "id": 5,
+            "title": "Build rule testing and statistics functionality",
+            "description": "Implement rule testing tools and analytics to track rule performance and email processing statistics",
+            "dependencies": [
+              3,
+              4
+            ],
+            "details": "Add rule testing functionality allowing users to test patterns against sample emails before saving. Create statistics tracking for each rule showing: emails processed, emails skipped/categorized, rule effectiveness metrics. Build analytics dashboard showing rule performance over time and add email processing statistics to the morning briefing summary.",
+            "status": "pending",
+            "testStrategy": "Test rule validation with various email samples, verify statistics accuracy, test analytics dashboard data visualization, and ensure performance metrics are calculated correctly",
+            "parentId": "undefined"
+          }
+        ],
+        "updatedAt": "2026-06-27T10:00:54.682Z"
+      },
+      {
+        "id": "9",
+        "title": "Build API Cost Dashboard",
+        "description": "Create monitoring dashboard showing Anthropic API usage and costs to stay under $20/month budget",
+        "details": "Create 'api_usage' table tracking: timestamp, function_called, tokens_used, estimated_cost, model_used. Add logging to all Supabase Edge Functions that call Anthropic API. Build dashboard in Settings tab showing: daily/monthly usage, cost breakdown by function, token consumption trends, and budget alerts. Implement cost projection based on current usage patterns. Add usage optimization suggestions when approaching budget limits.",
+        "testStrategy": "Test usage tracking accuracy across all AI functions, verify cost calculations match Anthropic pricing, test budget alert thresholds, and validate dashboard data visualization.",
+        "priority": "low",
+        "dependencies": [],
+        "status": "cancelled",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create API usage tracking database table",
+            "description": "Set up the database schema for tracking Anthropic API usage and costs",
+            "dependencies": [],
+            "details": "Create 'api_usage' table in Supabase with fields: id (primary key), timestamp (timestamptz), function_called (text), tokens_used (integer), estimated_cost (decimal), model_used (text), created_at (timestamptz). Add appropriate indexes for timestamp-based queries and function filtering. Set up RLS policies for secure access.",
+            "status": "pending",
+            "testStrategy": "Test table creation, verify all fields accept expected data types, test RLS policies, and validate index performance with sample data",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Add API usage logging to Supabase Edge Functions",
+            "description": "Implement logging functionality in all Edge Functions that call Anthropic API",
+            "dependencies": [
+              1
+            ],
+            "details": "Modify all existing Supabase Edge Functions that make Anthropic API calls to log usage data to the api_usage table. Calculate token usage from API responses, estimate costs based on current Anthropic pricing ($0.25/1K input tokens, $1.25/1K output tokens for Claude-3.5-Sonnet), and capture function name and model used. Add error handling for logging failures.",
+            "status": "pending",
+            "testStrategy": "Test each Edge Function to ensure logging occurs without affecting performance, verify token counting accuracy, and validate cost calculations against Anthropic pricing",
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Build dashboard UI components for usage visualization",
+            "description": "Create React components to display API usage statistics and trends",
+            "dependencies": [
+              1
+            ],
+            "details": "Build dashboard components in the Settings tab showing: daily/monthly usage charts using Chart.js or similar, cost breakdown by function (pie chart), token consumption trends (line chart), and current month spending summary. Use Tailwind CSS for styling and ensure responsive design. Create reusable chart components for different data visualizations.",
+            "status": "pending",
+            "testStrategy": "Test dashboard rendering with sample data, verify chart responsiveness across devices, test data refresh functionality, and validate visual accuracy of different chart types",
+            "parentId": "undefined"
+          },
+          {
+            "id": 4,
+            "title": "Implement budget alerts and cost projection system",
+            "description": "Add budget monitoring with alerts and usage projection calculations",
+            "dependencies": [
+              2,
+              3
+            ],
+            "details": "Implement budget alert system that triggers warnings at 75% and 90% of $20 monthly budget. Create cost projection algorithm based on current usage patterns (daily average * remaining days). Add visual indicators (progress bars, color coding) for budget status. Store budget preferences in user settings and implement email/in-app notifications for budget alerts.",
+            "status": "pending",
+            "testStrategy": "Test budget calculations with various usage scenarios, verify alert triggers at correct thresholds, test projection accuracy, and validate notification delivery",
+            "parentId": "undefined"
+          },
+          {
+            "id": 5,
+            "title": "Add usage optimization suggestions and reporting",
+            "description": "Implement intelligent suggestions for optimizing API usage and costs",
+            "dependencies": [
+              4
+            ],
+            "details": "Create optimization suggestion engine that analyzes usage patterns and recommends cost-saving measures: identify high-cost functions, suggest prompt optimization, recommend usage timing adjustments. Add detailed reporting features showing cost per function, most expensive operations, and usage efficiency metrics. Include export functionality for usage reports and integration with morning briefing for budget status.",
+            "status": "pending",
+            "testStrategy": "Test suggestion algorithm accuracy with various usage patterns, verify report generation and export functionality, test integration with morning briefing, and validate optimization recommendations effectiveness",
+            "parentId": "undefined"
+          }
+        ],
+        "updatedAt": "2026-06-27T10:00:54.691Z"
+      },
+      {
+        "id": "10",
+        "title": "Implement Calendar Conflict Detection",
+        "description": "Add intelligent conflict detection for overlapping meetings and travel time considerations",
+        "details": "Enhance calendar display to detect and highlight overlapping events. Add travel time buffer detection for meetings at different locations. Create conflict resolution suggestions via AI chat integration. Store location data in enhanced calendar events and calculate travel times using basic distance estimation. Add conflict warnings in daily briefing and calendar view. Implement smart scheduling suggestions to avoid conflicts when viewing calendar.",
+        "testStrategy": "Test with various meeting scenarios including back-to-back meetings, overlapping events, and different locations. Verify travel time calculations and conflict detection accuracy. Test suggestion quality and user experience.",
+        "priority": "low",
+        "dependencies": [],
+        "status": "cancelled",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create calendar event location data storage",
+            "description": "Enhance calendar events database schema to store location information for conflict detection",
+            "dependencies": [],
+            "details": "Add location fields to calendar events table including address, coordinates, and venue type. Update calendar event creation and editing forms to capture location data. Modify Microsoft Graph API integration to extract and store location information from calendar events.",
+            "status": "pending",
+            "testStrategy": "Test location data storage with various event types, verify data persistence, and test location extraction from Graph API",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Implement travel time calculation engine",
+            "description": "Build system to calculate travel times between meeting locations using distance estimation",
+            "dependencies": [
+              1
+            ],
+            "details": "Create utility functions to calculate travel time between two locations using basic distance estimation algorithms. Implement different travel modes (driving, walking, public transit) with configurable time buffers. Add caching mechanism for frequently calculated routes to improve performance.",
+            "status": "pending",
+            "testStrategy": "Test travel time calculations with various location pairs, verify accuracy of distance estimations, and test caching functionality",
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Build overlap and conflict detection logic",
+            "description": "Implement core algorithm to detect overlapping meetings and travel time conflicts",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Create conflict detection service that analyzes calendar events for time overlaps and insufficient travel time buffers. Implement logic to identify different conflict types: direct overlaps, travel time violations, and back-to-back meeting issues. Generate conflict severity scores and categorization.",
+            "status": "pending",
+            "testStrategy": "Test with various meeting scenarios including overlapping events, back-to-back meetings at different locations, and edge cases with all-day events",
+            "parentId": "undefined"
+          },
+          {
+            "id": 4,
+            "title": "Create conflict visualization and warnings UI",
+            "description": "Build user interface components to display conflicts in calendar view and daily briefing",
+            "dependencies": [
+              3
+            ],
+            "details": "Add visual indicators to calendar events showing conflicts with color coding and icons. Create conflict warning panel for daily briefing displaying upcoming conflicts. Implement detailed conflict information modals with specific conflict descriptions and affected events.",
+            "status": "pending",
+            "testStrategy": "Test visual conflict indicators across different calendar views, verify warning panel functionality, and test user interaction with conflict details",
+            "parentId": "undefined"
+          },
+          {
+            "id": 5,
+            "title": "Integrate AI-powered conflict resolution suggestions",
+            "description": "Add intelligent scheduling suggestions and conflict resolution via AI chat integration",
+            "dependencies": [
+              3,
+              4
+            ],
+            "details": "Integrate with existing AI chat system to provide smart scheduling suggestions when conflicts are detected. Implement suggestion algorithms for meeting rescheduling, location changes, and travel time optimization. Add quick action buttons to apply suggested resolutions directly from conflict warnings.",
+            "status": "pending",
+            "testStrategy": "Test suggestion quality and relevance, verify AI chat integration functionality, and test quick resolution actions with various conflict scenarios",
+            "parentId": "undefined"
+          }
+        ],
+        "updatedAt": "2026-06-27T10:00:54.701Z"
+      }
+    ],
+    "metadata": {
+      "version": "1.0.0",
+      "lastModified": "2026-06-27T10:00:54.701Z",
+      "taskCount": 10,
+      "completedCount": 4,
+      "tags": [
+        "master"
+      ]
+    }
+  }
+}

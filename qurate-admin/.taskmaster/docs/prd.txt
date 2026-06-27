@@ -1,0 +1,255 @@
+> ⚠️ **SUPERSEDED (2026-06-27).** This v1.0 BRD describes the v3 "7-tab dashboard" product
+> model. It has been replaced by the **v4 ambient-EA pivot** in `docs/BRD.md`, with the active
+> roadmap in `docs/EPICS.md` (Epics A–E). The 10 Task Master tasks generated from this document
+> were reconciled and retired — do not use them. Kept for historical reference only.
+
+---
+
+# Qurate EA — Business Requirements Document
+
+**Project:** Qurate Admin Agent (EA)
+**Owner:** Richard Palmer, Qurate Advisory
+**Version:** 1.0
+**Date:** February 2026
+**Status:** Active Development
+**Deployed:** admin.qurate.com.au
+
+---
+
+## 1. Executive Summary
+
+Qurate EA is an AI-powered executive assistant purpose-built for a 2-partner M&A advisory firm. It combines diary management, email triage, task prioritisation (Eisenhower Matrix), and proactive daily guidance into a single mobile-first interface — replacing the need for a human EA at the early growth stage.
+
+The agent acts as a chief of staff who knows Richard's clients, rhythm, and priorities.
+
+### Design Philosophy
+
+Every item entering Richard's world (email, task, calendar event) must be classified into an Eisenhower quadrant. The agent's job is to surface Q1 items immediately, protect time for Q2 work, flag Q3 items for delegation, and eliminate Q4 noise.
+
+---
+
+## 2. User Context
+
+| Attribute | Detail |
+|---|---|
+| Primary user | Richard Palmer — Partner, Qurate Advisory |
+| Roles | M&A Advisor, Independent Director (Think Water), Business Owner (Alstonville Plants) |
+| Framework | EOS (Quarterly Rocks, L10 Meetings, Scorecard) |
+| Revenue target | $500k retainer revenue |
+| Team | 2 partners + contractors |
+| Current clients | Think Water Group, Therefore Group, Providence Wealth |
+| Timezone | AEST (Australia/Brisbane) |
+| Access devices | iPhone (primary), desktop browser |
+
+---
+
+## 3. Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | Next.js 14 App Router, TypeScript, React 18 |
+| Styling | Global CSS + Tailwind, dark-mode first |
+| Backend | Supabase (Postgres + Edge Functions) |
+| Auth | Microsoft Azure AD / OAuth2 via Supabase ms-auth edge function |
+| Email & Calendar | Microsoft Graph API (read mail, calendar, send mail) |
+| AI | Anthropic Claude — Haiku for classification, Sonnet for drafts and chat |
+| Deployment | Vercel (auto-deploy from GitHub main branch) |
+| Domain | admin.qurate.com.au |
+| PWA | manifest.json + service worker, optimised for iPhone |
+
+### Environment Variables Required
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+### Supabase Edge Functions
+- `ms-auth` — Microsoft OAuth login, callback, disconnect, token retrieval
+- `chat` — AI assistant and daily brief generation
+- `draft-reply` — AI email reply drafting
+
+### Supabase Tables
+- `ai_daily_briefs` — brief_text, created_at
+- `eisenhower_tasks` — id, title, quadrant, client_name, due_date, estimated_minutes, status, notes, tags, delegation
+
+### Brand
+- Teal: `#3AAFA9`
+- Gold: `#C9A96E`
+- Font: DM Sans
+- Dark mode default, light mode toggle
+
+---
+
+## 4. Application Structure
+
+Five main tabs accessible via fixed bottom navigation bar:
+
+1. **Brief** — Daily briefing
+2. **Mail** — Email inbox
+3. **Tasks** — Eisenhower Matrix
+4. **Calendar** — 14-day calendar view
+5. **Clients** — Client-centric view
+6. **Chat** — AI assistant
+7. **Settings** — Preferences and connection management
+
+---
+
+## 5. Functional Requirements
+
+### 5.1 Authentication
+
+| ID | Requirement | Priority | Status |
+|---|---|---|---|
+| AU-01 | Microsoft 365 sign-in via OAuth2 (Azure AD) | Must | ✅ Built |
+| AU-02 | Session persisted via httpOnly cookie (30-day expiry) | Must | ✅ Built |
+| AU-03 | Token stored and refreshed via Supabase ms-auth function | Must | ✅ Built |
+| AU-04 | Redirect to login if token missing or expired | Must | ✅ Built |
+| AU-05 | Sign out clears cookie and revokes MS token | Must | ✅ Built |
+
+### 5.2 Morning Briefing
+
+| ID | Requirement | Priority | Status |
+|---|---|---|---|
+| BR-01 | Greeting panel with Richard's name and today's date/time | Must | ✅ Built |
+| BR-02 | Generate AI Daily Brief button — calls Supabase chat function | Must | ✅ Built |
+| BR-03 | Display today's calendar events in briefing | Must | ✅ Built |
+| BR-04 | Display Q1 (Do First) tasks in briefing | Must | ✅ Built |
+| BR-05 | Risk alert panel — surfaces urgent emails/tasks count | Must | ✅ Built |
+| BR-06 | Q2 focus block suggestions with estimated minutes | Should | ✅ Built |
+| BR-07 | Load and display latest AI brief from ai_daily_briefs table | Must | ✅ Built |
+| BR-08 | Follow-ups overdue — flag emails sent >48hrs with no reply | Should | ❌ Not built |
+| BR-09 | Revenue tracker showing pipeline progress toward $500k | Should | ❌ Not built |
+| BR-10 | End-of-day summary view | Should | ❌ Not built |
+| BR-11 | Weather and travel time for offsite meetings | Could | ❌ Not built |
+
+### 5.3 Email Management
+
+| ID | Requirement | Priority | Status |
+|---|---|---|---|
+| EM-01 | Fetch inbox from Microsoft Graph (top 50 emails) | Must | ✅ Built |
+| EM-02 | AI Eisenhower quadrant classification per email | Must | ✅ Built |
+| EM-03 | AI one-line summary per email | Must | ✅ Built |
+| EM-04 | Split inbox filters: All / Urgent (Q1) / VIP / Tools / Other | Must | ✅ Built |
+| EM-05 | Email detail view with sender, subject, body, AI fields | Must | ✅ Built |
+| EM-06 | AI Draft Reply via Supabase draft-reply function | Must | ✅ Built |
+| EM-07 | Editable draft textarea before sending | Must | ✅ Built |
+| EM-08 | Send confirmation modal — never auto-send | Must | ✅ Built |
+| EM-09 | Send via Microsoft Graph /sendMail | Must | ✅ Built |
+| EM-10 | Compose new email modal | Must | ✅ Built |
+| EM-11 | Swipe to archive on mobile | Should | ✅ Built |
+| EM-12 | Keyboard shortcuts: E=archive, R=reply, Esc=close | Should | ✅ Built |
+| EM-13 | Snooze email | Could | ❌ Not built |
+| EM-14 | Auto-skip rules for marketing/LinkedIn/notifications | Could | ❌ Not built |
+
+### 5.4 Eisenhower Matrix (Tasks)
+
+| ID | Requirement | Priority | Status |
+|---|---|---|---|
+| EI-01 | Four-quadrant task board: Q1 Do First / Q2 Schedule / Q3 Delegate / Q4 Eliminate | Must | ✅ Built |
+| EI-02 | Create task — title, quadrant, client, due date, estimated minutes, description | Must | ✅ Built |
+| EI-03 | Edit task | Must | ✅ Built |
+| EI-04 | Complete task (status → done) | Must | ✅ Built |
+| EI-05 | Delete task | Must | ✅ Built |
+| EI-06 | Drag and drop tasks between quadrants | Must | ✅ Built |
+| EI-07 | Done tasks view — toggle to show completed tasks | Should | ✅ Built |
+| EI-08 | Task merge (combine two items) | Could | ✅ Built |
+| EI-09 | Tasks linked to client names | Should | ✅ Built |
+| EI-10 | Delegation target on Q3 tasks | Should | ✅ Built |
+| EI-11 | Quarterly Rocks tracking with progress | Should | ❌ Not built |
+
+### 5.5 Calendar
+
+| ID | Requirement | Priority | Status |
+|---|---|---|---|
+| CA-01 | Fetch calendar events from Microsoft Graph (14-day view) | Must | ✅ Built |
+| CA-02 | Display events grouped by day with scrolling layout | Must | ✅ Built |
+| CA-03 | Show recommended focus blocks integrated with tasks | Should | ✅ Built |
+| CA-04 | Meeting prep brief per event (attendees, context, open items) | Should | ✅ Built |
+| CA-05 | Post-meeting: capture actions, draft follow-up email | Should | ❌ Not built |
+| CA-06 | Conflict detection | Could | ❌ Not built |
+| CA-07 | Smart scheduling suggestions | Could | ❌ Not built |
+| CA-08 | No-meeting day protection | Could | ❌ Not built |
+
+### 5.6 Clients
+
+| ID | Requirement | Priority | Status |
+|---|---|---|---|
+| CL-01 | Client-grouped view combining emails and tasks | Must | ✅ Built |
+| CL-02 | Per-client summary: inbox items + matrix tasks | Must | ✅ Built |
+| CL-03 | Quick view of which clients need attention | Should | ✅ Built |
+| CL-04 | Revenue per client tracking | Could | ❌ Not built |
+
+### 5.7 AI Chat
+
+| ID | Requirement | Priority | Status |
+|---|---|---|---|
+| CH-01 | Conversational AI assistant interface | Must | ✅ Built |
+| CH-02 | Conversation history (user + assistant bubbles) | Must | ✅ Built |
+| CH-03 | Quick action buttons: Morning briefing / Triage inbox / Today's schedule / Q1 tasks / Weekly review / Focus block | Must | ✅ Built |
+| CH-04 | Calls Supabase chat function with message + history | Must | ✅ Built |
+| CH-05 | Markdown rendering for assistant responses | Must | ✅ Built |
+| CH-06 | Context-aware: knows clients, Rocks, preferences | Should | Partial |
+| CH-07 | Always confirm before taking actions | Must | ✅ Built |
+| CH-08 | Cmd+K command palette | Could | ❌ Not built |
+
+### 5.8 Settings
+
+| ID | Requirement | Priority | Status |
+|---|---|---|---|
+| ST-01 | Microsoft 365 connection status display | Must | ✅ Built |
+| ST-02 | Disconnect / reconnect Microsoft account | Must | ✅ Built |
+| ST-03 | Daily briefing time preference (stored in localStorage) | Should | ✅ Built |
+| ST-04 | Focus start/end time preferences | Should | ✅ Built |
+| ST-05 | VIP contacts list (stored in localStorage) | Should | ✅ Built |
+| ST-06 | Auto-skip rules for email categories | Could | ❌ Not built |
+| ST-07 | API cost dashboard | Could | ❌ Not built |
+
+---
+
+## 6. Non-Functional Requirements
+
+| Area | Requirement |
+|---|---|
+| Performance | AI response time <3 seconds |
+| Mobile | PWA optimised for iPhone, fixed bottom nav, touch interactions |
+| Security | OAuth2 for MS auth, API keys server-side only, never client-side |
+| Privacy | Client data only sent to Anthropic API, no other third parties |
+| Auth | Single user (Richard), expandable to partner |
+| Offline | Graceful degradation — cached tasks visible when offline |
+| Cost | Under $20/month Anthropic API costs |
+| Branding | Qurate teal/gold palette, dark mode default |
+
+---
+
+## 7. Remaining Build Priorities
+
+### High Priority
+| ID | Feature |
+|---|---|
+| BR-08 | Follow-ups overdue (emails sent >48hrs no reply) |
+| CA-05 | Post-meeting action capture + follow-up draft |
+| BR-09 | Revenue tracker toward $500k |
+
+### Medium Priority
+| ID | Feature |
+|---|---|
+| EI-11 | Quarterly Rocks tracking |
+| BR-10 | End-of-day summary |
+| EM-13 | Email snooze |
+
+### Low Priority / Future
+| ID | Feature |
+|---|---|
+| CH-08 | Cmd+K command palette |
+| ST-06 | Auto-skip rules |
+| ST-07 | API cost dashboard |
+| CA-06 | Conflict detection |
+| BR-11 | Weather + travel time |
+
+---
+
+## 8. Out of Scope (MVP)
+
+- Multi-user / team access beyond Richard + 1 partner
+- Native iOS/Android app (PWA covers mobile)
+- Calendar write / event creation (read-only for now)
+- Integration with tools other than Microsoft 365
+- CRM functionality beyond client grouping
