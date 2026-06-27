@@ -6,6 +6,7 @@ node_modules/
 out/
 
 # environment variables
+.env
 .env*.local
 
 # misc
