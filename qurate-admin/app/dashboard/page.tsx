@@ -318,7 +318,19 @@ interface FollowUp {
   sent_date?: string
 }
 
-type QueueKind = 'followup' | 'reply' | 'task'
+type QueueKind = 'followup' | 'reply' | 'task' | 'review'
+// Epic E recall/correction: a low-confidence classification the EA auto-filed but
+// wants confirmed, so nothing is silently mis-filed. Confirm/Correct writes back to
+// email_processing_history.review_status (the feedback hook sender-history reads).
+interface ReviewItem {
+  id: string
+  email_id?: string
+  subject?: string
+  sender_name?: string
+  sender_email?: string
+  ai_category?: string
+  ai_confidence_score?: number
+}
 interface QueueItem {
   key: string
   kind: QueueKind
@@ -330,6 +342,7 @@ interface QueueItem {
   email?: Email
   task?: EisenhowerTask
   followUp?: FollowUp
+  review?: ReviewItem
 }
 
 const todayISO = () => new Date().toLocaleDateString('en-CA')
@@ -404,7 +417,13 @@ function QueueCard({ item, msTokenAvailable, onDraft, onSend, onComplete, onDism
         {item.kind === 'task' && (
           <button onClick={doComplete} disabled={busy} style={{ ...primaryBtnStyle, padding: '7px 14px', fontSize: 12, opacity: busy ? 0.6 : 1 }}>{phase === 'working' ? 'Completing…' : 'Complete'}</button>
         )}
-        {phase !== 'editing' && (
+        {item.kind === 'review' && phase !== 'editing' && (
+          <>
+            <button onClick={doComplete} disabled={busy} style={{ ...primaryBtnStyle, padding: '7px 14px', fontSize: 12, opacity: busy ? 0.6 : 1 }}>{phase === 'working' ? 'Saving…' : 'Looks right'}</button>
+            <button onClick={() => onDismiss(item)} disabled={busy} style={actBtn}>Not for me</button>
+          </>
+        )}
+        {phase !== 'editing' && item.kind !== 'review' && (
           <>
             {item.kind === 'followup' && <button onClick={doComplete} disabled={busy} style={actBtn}>Mark done</button>}
             {item.kind === 'reply' && <button onClick={() => onDismiss(item)} disabled={busy} style={actBtn}>Archive</button>}
@@ -422,6 +441,7 @@ function TodayTab({ emails, tasks, onCompleteTask }: {
   onCompleteTask: (id: string) => Promise<void> | void
 }) {
   const [followUps, setFollowUps] = useState<FollowUp[]>([])
+  const [reviewItems, setReviewItems] = useState<ReviewItem[]>([])
   const [snoozed, setSnoozed] = useState<Set<string>>(new Set())
   const [removed, setRemoved] = useState<Set<string>>(new Set())
   const [msToken, setMsToken] = useState<string | null>(null)
@@ -435,6 +455,23 @@ function TodayTab({ emails, tasks, onCompleteTask }: {
       .then(d => { if (Array.isArray(d)) setFollowUps(d) })
       .catch(() => {})
   }, [])
+
+  // Epic E recall: surface low-confidence auto-classifications so nothing is silently mis-filed.
+  useEffect(() => {
+    fetch(`${SUPABASE_URL}/rest/v1/email_processing_history?review_status=eq.pending&ai_confidence_score=lt.0.6&select=id,email_id,subject,sender_name,sender_email,ai_category,ai_confidence_score&order=processed_at.desc&limit=15`, { headers: { apikey: ANON_KEY } })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => { if (Array.isArray(d)) setReviewItems(d) })
+      .catch(() => {})
+  }, [])
+
+  // Confirm or correct a low-confidence classification — feeds review_status, which
+  // sender-history reads to improve future surfacing.
+  async function patchReview(id: string, status: 'confirmed' | 'corrected') {
+    await fetch(`${SUPABASE_URL}/rest/v1/email_processing_history?id=eq.${id}`, {
+      method: 'PATCH', headers: { apikey: ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ review_status: status }),
+    })
+  }
 
   // Archive an email via the same Edge Function the Mail tab uses.
   async function archiveEmail(id: string) {
@@ -475,9 +512,17 @@ function TodayTab({ emails, tasks, onCompleteTask }: {
     overdue.forEach(t => out.push(taskItem(t, true)))
     dueSoon.forEach(t => out.push(taskItem(t, false)))
 
+    // Low-confidence classifications to confirm — lowest priority, after the real work.
+    reviewItems.forEach(r => out.push({
+      key: `rv-${r.id}`, kind: 'review', tag: 'Review', tagColor: '#3AAFA9',
+      title: r.subject || '(no subject)',
+      subtitle: `${r.sender_name || r.sender_email || 'unknown'} · I filed this as ${r.ai_category || 'unsorted'} — right?`,
+      review: r,
+    }))
+
     const filtered = out.filter(i => !snoozed.has(i.key) && !removed.has(i.key))
     return { items: filtered, q1TaskTotal: q1Tasks.length }
-  }, [followUps, emails, tasks, snoozed, removed])
+  }, [followUps, emails, tasks, reviewItems, snoozed, removed])
 
   const visible = items.slice(0, VISIBLE_CAP)
   const hiddenCount = items.length - visible.length
@@ -519,11 +564,13 @@ function TodayTab({ emails, tasks, onCompleteTask }: {
   async function onComplete(item: QueueItem): Promise<void> {
     if (item.kind === 'task') await onCompleteTask(item.task!.id)
     else if (item.kind === 'followup') await resolveFollowUp(item.followUp!.id)
+    else if (item.kind === 'review') await patchReview(item.review!.id, 'confirmed')
     remove(item.key)
   }
 
   function onDismiss(item: QueueItem) {
     if (item.kind === 'reply') archiveEmail(item.email!.id)
+    else if (item.kind === 'review') patchReview(item.review!.id, 'corrected')
     remove(item.key)
   }
 
@@ -1154,6 +1201,12 @@ export default function Dashboard() {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(() => {})
     }
+  }, [])
+
+  // Deep-link target (Epic A): briefs/nudges link to /dashboard?tab=today.
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search).get('tab')
+    if (p === 'today' || p === 'chat' || p === 'settings') setTab(p)
   }, [])
 
   useEffect(() => { loadEmails(); loadCalendar(); loadTasks() }, [loadEmails, loadCalendar, loadTasks])

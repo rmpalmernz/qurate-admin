@@ -83,7 +83,7 @@ async function evaluateRules(sb: ReturnType<typeof createClient>): Promise<Nudge
       dedupKey: `followup:${f.id}`, rule: "cold_followup",
       severity: days >= 5 ? "high" : "medium", rank: days,
       title: "Follow-up gone cold", body: `Chase ${who}: "${f.subject || "(no subject)"}" — ${days}d overdue`,
-      url: "/dashboard", cooldownHours: 24,
+      url: "/dashboard?tab=today", cooldownHours: 24,
     })
   }
 
@@ -99,7 +99,7 @@ async function evaluateRules(sb: ReturnType<typeof createClient>): Promise<Nudge
       severity: overdue ? "high" : "medium", rank: overdue ? 100 : 50,
       title: overdue ? "Q1 task overdue" : "Q1 task due today",
       body: `${tk.title || "(untitled)"}${tk.client_name ? ` · ${tk.client_name}` : ""}`,
-      url: "/dashboard", cooldownHours: 24,
+      url: "/dashboard?tab=today", cooldownHours: 24,
     })
   }
 
@@ -119,7 +119,7 @@ async function evaluateRules(sb: ReturnType<typeof createClient>): Promise<Nudge
             dedupKey: `stalled:${d.id}`, rule: "stalled_deal",
             severity: days > 60 ? "high" : "medium", rank: days,
             title: "Deal stalled", body: `${d.companies?.name || d.title || "Deal"} — ${days}d in ${d.stage || "stage"}`,
-            url: "/dashboard", cooldownHours: 72,
+            url: "/dashboard?tab=today", cooldownHours: 72,
           })
         }
       }
@@ -144,7 +144,7 @@ async function evaluateRules(sb: ReturnType<typeof createClient>): Promise<Nudge
             dedupKey: `revenue:${dealId}`, rule: "overdue_revenue",
             severity: "high", rank: 90,
             title: "Revenue overdue", body: `$${amt.toLocaleString()} scheduled but not realised — ${name}`,
-            url: "/dashboard", cooldownHours: 72,
+            url: "/dashboard?tab=today", cooldownHours: 72,
           })
         }
       }

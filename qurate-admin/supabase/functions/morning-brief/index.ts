@@ -40,6 +40,10 @@ const REVENUE_TARGET_AUD = 500_000
 const AEST = "Australia/Brisbane"
 const GRAPH = "https://graph.microsoft.com/v1.0"
 
+// Epic A: deep-link the brief back into the app's Action Queue.
+const APP_URL = Deno.env.get("APP_URL") || "https://admin.qurate.com.au"
+const BRIEF_FOOTER = `<hr><p style="font-size:13px;color:#475569">→ <a href="${APP_URL}/dashboard?tab=today" style="color:#c19131;font-weight:600">Open your Action Queue</a> to approve drafts &amp; clear follow-ups — or open the full thread in Outlook.</p>`
+
 // ─── System prompt baked in (was previously read from ai_prompts.chat). ──────
 const SYSTEM_PROMPT = `You are Richard Palmer's world-class Chief of Staff and Executive Assistant.
 
@@ -701,7 +705,7 @@ Deno.serve(async (req: Request) => {
         const accessToken = await getMsAccessToken()
         const userEmail = await getUserEmail(accessToken)
         const innerHtml = await marked.parse(eodText)
-        const fullHtml = htmlEnvelope(innerHtml as string)
+        const fullHtml = htmlEnvelope((innerHtml as string) + BRIEF_FOOTER)
         await sendMail(accessToken, userEmail, `End of Day — ${todayStrEod}`, fullHtml)
         sentAt = new Date().toISOString()
         sentTo = userEmail
@@ -802,7 +806,7 @@ Deno.serve(async (req: Request) => {
       const accessToken = await getMsAccessToken()
       const userEmail = await getUserEmail(accessToken)
       const innerHtml = await marked.parse(briefText)
-      const fullHtml = htmlEnvelope(innerHtml as string)
+      const fullHtml = htmlEnvelope((innerHtml as string) + BRIEF_FOOTER)
       const dateLabel = new Date(briefDate + "T00:00:00").toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
       await sendMail(accessToken, userEmail, `Daily Brief — ${dateLabel}`, fullHtml)
       sentAt = new Date().toISOString()

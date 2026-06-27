@@ -14,7 +14,7 @@ Critical path to "trustworthy ambient EA in production": **Epic A → Epic B →
 
 ## Epic A — Bulletproof + richer brief ✅ shipped
 
-> **Status 2026-06-27:** HealthBanner + failure-alert, end-of-day variant + cron, and the REVENUE TRACKER section in morning-brief all live. Remaining nicety: richer brief→queue deep-links.
+> **Status 2026-06-27:** HealthBanner + failure-alert, end-of-day variant + cron, the REVENUE TRACKER section in morning-brief, and a brief→Action-Queue deep-link footer (`/dashboard?tab=today`) all live.
 
 > The brief is now the primary surface. In an ambient model the user stops checking the inbox, so a missed brief is invisible — delivery reliability is non-negotiable.
 
@@ -98,9 +98,9 @@ Critical path to "trustworthy ambient EA in production": **Epic A → Epic B →
 
 ---
 
-## Epic E — Trust & recall safety net 🟡 partial
+## Epic E — Trust & recall safety net ✅ shipped
 
-> **Status 2026-06-27:** Auto-handled digest (weekly, with low-confidence flags + API spend vs budget) and the explicit "Nothing needs you" empty state are shipped. Remaining: recall-tuning (surface low-confidence classifications into the queue) and the in-app correction feedback loop (review_status + sender-history are the hooks).
+> **Status 2026-06-27:** Auto-handled digest (weekly, low-confidence flags + API spend vs budget), explicit "Nothing needs you" empty state, low-confidence classifications now surface in the Today queue as **Review** items, and **Confirm / Not-for-me** writes `review_status` (the feedback hook sender-history reads). Deeper sender-history retraining can build on this signal later.
 
 > The counterweight that makes removing the Mail tab safe. Without a second inbox to double-check, a miss is invisible — see `docs/BRD.md` §13.
 
