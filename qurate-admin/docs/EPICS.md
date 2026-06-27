@@ -12,7 +12,9 @@ Critical path to "trustworthy ambient EA in production": **Epic A → Epic B →
 
 # Active roadmap (v4 ambient pivot)
 
-## Epic A — Bulletproof + richer brief ⬜ top priority
+## Epic A — Bulletproof + richer brief ✅ shipped
+
+> **Status 2026-06-27:** HealthBanner + failure-alert, end-of-day variant + cron, and the REVENUE TRACKER section in morning-brief all live. Remaining nicety: richer brief→queue deep-links.
 
 > The brief is now the primary surface. In an ambient model the user stops checking the inbox, so a missed brief is invisible — delivery reliability is non-negotiable.
 
@@ -32,7 +34,9 @@ Critical path to "trustworthy ambient EA in production": **Epic A → Epic B →
 
 ---
 
-## Epic B — The Action Queue ⬜ core of the pivot
+## Epic B — The Action Queue ✅ shipped
+
+> **Status 2026-06-27:** Today tab is the Action Queue — follow-ups, Q1 emails, Q1 tasks, with approve/edit/dismiss/snooze and the explicit "Nothing needs you" empty state.
 
 > Re-scope of the old Epic 1 "bridge dashboard ↔ back-of-house". Instead of wiring intelligence into tab widgets, the intelligence becomes a single prioritised queue of things needing approval.
 
@@ -53,7 +57,9 @@ Critical path to "trustworthy ambient EA in production": **Epic A → Epic B →
 
 ---
 
-## Epic C — Proactive nudges / push notifications ⬜ not started
+## Epic C — Proactive nudges / push notifications ✅ shipped (code)
+
+> **Status 2026-06-27:** Web Push channel (push_subscriptions, service-worker handlers, /api/push/subscribe, send-push Edge Function, Settings toggle) + nudge-engine (cold follow-ups, Q1 tasks, stalled deals, overdue revenue) with quiet hours, focus-block suppression, cooldowns (nudge_log), per-run cap, and a 30-min cron. Pending: live activation (VAPID secrets, migrations, deploy) + iOS device test. Approve-from-notification actions are a follow-up.
 
 > **Reverses the old v2 stance** ("push notifications replaced by email"). An ambient EA needs to reach the user at the moment something becomes actionable.
 
@@ -71,7 +77,9 @@ Critical path to "trustworthy ambient EA in production": **Epic A → Epic B →
 
 ---
 
-## Epic D — Remove Mail & Calendar; collapse Tasks/Clients ⬜ not started
+## Epic D — Remove Mail & Calendar; collapse Tasks/Clients ✅ shipped
+
+> **Status 2026-06-27:** In-app IA reduced to **Today · Chat · Settings**. Mail, Calendar, Briefing, Tasks (matrix) and Clients tabs removed; page.tsx shrank ~3043 → ~1264 lines. Tasks/Clients now surface via the Today queue + the daily brief; Outlook remains the system of record (deep-link out).
 
 > Done **after** B + C land, so the user never loses the ability to act on email during the transition.
 
@@ -90,7 +98,9 @@ Critical path to "trustworthy ambient EA in production": **Epic A → Epic B →
 
 ---
 
-## Epic E — Trust & recall safety net ⬜ not started
+## Epic E — Trust & recall safety net 🟡 partial
+
+> **Status 2026-06-27:** Auto-handled digest (weekly, with low-confidence flags + API spend vs budget) and the explicit "Nothing needs you" empty state are shipped. Remaining: recall-tuning (surface low-confidence classifications into the queue) and the in-app correction feedback loop (review_status + sender-history are the hooks).
 
 > The counterweight that makes removing the Mail tab safe. Without a second inbox to double-check, a miss is invisible — see `docs/BRD.md` §13.
 
