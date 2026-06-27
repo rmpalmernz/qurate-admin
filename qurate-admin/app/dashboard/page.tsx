@@ -222,6 +222,75 @@ function ErrorBanner({ messages, onRetry }: { messages: string[]; onRetry?: () =
   )
 }
 
+// ─── Health banner ──────────────────────────────────────────────────────────
+// Surfaces SERVER-SIDE silent failures (today's brief never generated/emailed,
+// the database unreachable) by polling /api/health. Distinct from ErrorBanner,
+// which only reports this browser session's live data-load failures.
+//
+// Epic A / BRD §13 "Trust requires recall": an ambient EA must fail LOUDLY. Once
+// the user stops checking a Mail tab, a brief that silently didn't send is
+// invisible — so the most likely root cause (an invalidated Microsoft token)
+// gets a plain-language explanation and a one-tap Reconnect.
+type HealthCheck = { ok: boolean; detail?: string }
+type HealthResponse = { status: 'ok' | 'degraded'; checks?: Record<string, HealthCheck> }
+
+function HealthBanner() {
+  const [health, setHealth] = useState<HealthResponse | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const check = async () => {
+      try {
+        const res = await fetch('/api/health', { cache: 'no-store' })
+        const data = (await res.json()) as HealthResponse
+        if (!cancelled) setHealth(data)
+      } catch {
+        // The health endpoint itself being unreachable is usually a flaky
+        // network, not a real outage — stay quiet rather than crying wolf.
+        // Genuine live-data failures are already covered by ErrorBanner.
+      }
+    }
+    check()
+    const id = setInterval(check, 5 * 60 * 1000) // re-check every 5 min
+    return () => { cancelled = true; clearInterval(id) }
+  }, [])
+
+  if (!health || health.status !== 'degraded') return null
+
+  const checks = health.checks ?? {}
+  const dbBroken = checks.supabase?.ok === false
+  // A missing OR un-emailed brief almost always traces back to a dropped
+  // Microsoft connection (the cron can't get a Graph token).
+  const briefBroken = checks.todays_brief?.ok === false || checks.brief_sent?.ok === false
+
+  const messages: string[] = []
+  if (dbBroken) messages.push("Can't reach the database")
+  if (checks.todays_brief?.ok === false) messages.push("Today's brief wasn't generated")
+  else if (checks.brief_sent?.ok === false) messages.push("Today's brief wasn't emailed")
+
+  return (
+    <div role="alert" style={{
+      display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 14px', marginBottom: 12,
+      background: 'rgba(192,57,43,0.16)', border: '1px solid rgba(192,57,43,0.45)', borderRadius: 8,
+    }}>
+      <span style={{ color: RED, fontSize: 18, lineHeight: 1.2, flexShrink: 0 }}>&#9888;</span>
+      <div style={{ flex: 1 }}>
+        <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: WHITE, fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif" }}>
+          {messages.join(' · ') || 'Something needs attention'}
+        </p>
+        {briefBroken && (
+          <p style={{ margin: '3px 0 0', fontSize: 12, color: BEIGE, lineHeight: 1.5, fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif" }}>
+            This usually means your Microsoft connection has dropped. Reconnect to restore your daily brief.
+          </p>
+        )}
+      </div>
+      {briefBroken && (
+        <a href="/" style={{ ...primaryBtnStyle, background: RED, color: WHITE, padding: '7px 14px', fontSize: 12, textDecoration: 'none', flexShrink: 0, whiteSpace: 'nowrap' }}>Reconnect</a>
+      )}
+    </div>
+  )
+}
+
 // ─── Section heading (Gujarati Sangam Bold) ─────────────────────────────────
 function SectionHeading({ children, color = GOLD }: { children: React.ReactNode; color?: string }) {
   return (
@@ -2631,6 +2700,7 @@ export default function Dashboard() {
 
       {/* Scrollable content */}
       <div className="main-content">
+        <HealthBanner />
         <ErrorBanner messages={errorMessages} onRetry={reloadAll} />
         {tab === 'briefing'  && <BriefingTab events={events} tasks={tasks} emails={emails} vipCompanies={vipCompaniesMerged} calendarError={calendarHasError} tasksError={tasksHasError} />}
         {tab === 'email'     && <EmailTab emails={emails} loading={emailLoading} onRefresh={loadEmails} vipCompanies={vipCompaniesMerged} loadError={emailHasError} />}
