@@ -73,6 +73,31 @@ RESPONSE RULES FOR MORNING BRIEF
 8. Use markdown. Be concise. No fluff. No generic advice.
 9. NEVER say "I don't have access to..." — you have full context via the injected data. If a section is empty, report "None" or "No X today".`
 
+// ─── End-of-day variant system prompt. ───────────────────────────────────────
+// Same Chief-of-Staff persona, but a wind-down close-out rather than a kickoff.
+const EVENING_SYSTEM_PROMPT = `You are Richard Palmer's world-class Chief of Staff and Executive Assistant, writing his END-OF-DAY wind-down brief.
+
+CRITICAL: You will receive a block of LIVE CONTEXT (calendar, tasks, pipeline, email counts, etc.) appended below. You MUST use that data only. Never say "I don't have access to" calendar, tasks, or email. If a section says "None", say that; do not suggest connecting systems or granting access.
+
+RICHARD'S IDENTITY
+- Partner at Qurate Advisory — strategic M&A advisory, lower mid-market ($2M–$50M EV)
+- Also runs Alstonville Plants — horticulture, targeting $500k+ free cash
+- Independent Director: Think Water Group. Framework: EOS. Timezone: AEST (Brisbane).
+
+YOUR ROLE
+A world-class EA closing out the day. Direct, prioritised, no fluff. Help Richard end the day with a clear head and a set-up for tomorrow.
+
+EISENHOWER FRAMEWORK: Q1 Do (urgent+important) · Q2 Plan (important, protect) · Q3 Delegate · Q4 Eliminate.
+
+RESPONSE RULES FOR END-OF-DAY BRIEF
+1. One-paragraph close-out summary — how the day stands, in plain English.
+2. Still open today — Q1 tasks and overdue items that did NOT get cleared, with client context. If all clear, say so plainly.
+3. Rolling over to tomorrow — the handful of things to carry forward (highest-value Q1/Q2 first).
+4. Loose threads — overdue follow-ups still unanswered, stalled deals, clients with no recent touchpoint.
+5. Set-up for tomorrow — one specific Q2 focus block to protect, with a time estimate.
+6. One recommended wind-down action — the single most useful thing to do before logging off (e.g. send one reply, jot one note).
+7. Use markdown. Be concise. No fluff. No generic advice. If a section is empty, report "None".`
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -169,6 +194,7 @@ interface RequestBody {
   force?: boolean
   send?: boolean
   context?: FrontendContext
+  variant?: "morning" | "endofday"
 }
 
 // ─── EA Data ─────────────────────────────────────────────────────────────────
@@ -617,9 +643,72 @@ Deno.serve(async (req: Request) => {
     const body = await req.json().catch(() => ({})) as RequestBody
     const force = body?.force === true
     const send = body?.send === true
+    const variant = body?.variant === "endofday" ? "endofday" : "morning"
 
     const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
     const briefDate = todayAESTISO()
+
+    // ─── End-of-day variant ──────────────────────────────────────────────────
+    // Self-contained branch so the critical morning path is never touched. The
+    // end-of-day brief is send-only: ai_daily_briefs holds the morning brief
+    // (one row per date), so we don't persist here to avoid clobbering it.
+    // Idempotency is enforced via api_cost_log (operation='evening_brief').
+    if (variant === "endofday") {
+      const todayStrEod = new Date().toLocaleDateString("en-AU", { weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone: AEST })
+
+      // Don't double-send today (unless forced).
+      if (send && !force) {
+        const { startUTC } = todayAESTBounds()
+        const { data: already } = await sb.from("api_cost_log").select("id").eq("operation", "evening_brief").gte("created_at", startUTC).limit(1)
+        if (already && (already as unknown[]).length > 0) {
+          return jsonResponse({ skipped: "already_sent", variant, brief_date: briefDate })
+        }
+      }
+
+      let ctx = body?.context
+      if (!ctx?.todayEvents) {
+        ctx = { ...(ctx ?? {}), todayEvents: await fetchTodayCalendarFromGraph() }
+      }
+      const [eaData, crmData] = await Promise.all([fetchEAData(sb), fetchCRMData()])
+      const contextBlock = applyTruncationUntilUnderBudget(todayStrEod, ctx, eaData, crmData)
+
+      const aiRes = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
+        body: JSON.stringify({
+          model: MODEL,
+          max_tokens: MAX_TOKENS,
+          system: EVENING_SYSTEM_PROMPT + "\n\n" + contextBlock,
+          messages: [{ role: "user", content: "Generate my end-of-day wind-down brief." }],
+        }),
+      })
+      const aiData = await aiRes.json().catch(() => ({}))
+      if (!aiRes.ok) {
+        const errMsg = aiData?.error?.message || aiData?.message || aiRes.statusText || "Anthropic API error"
+        throw new Error(`Anthropic ${aiRes.status}: ${errMsg}`)
+      }
+      const eodText = aiData?.content?.[0]?.text ?? ""
+      if (!eodText) throw new Error("Anthropic returned empty end-of-day brief")
+
+      const inputTokens = aiData?.usage?.input_tokens ?? 0
+      const outputTokens = aiData?.usage?.output_tokens ?? 0
+      const cost = (inputTokens * PRICE_INPUT_PER_MTOK + outputTokens * PRICE_OUTPUT_PER_MTOK) / 1_000_000
+      await sb.from("api_cost_log").insert({ operation: "evening_brief", model: MODEL, input_tokens: inputTokens, output_tokens: outputTokens, estimated_cost: cost })
+
+      let sentTo: string | null = null
+      let sentAt: string | null = null
+      if (send) {
+        const accessToken = await getMsAccessToken()
+        const userEmail = await getUserEmail(accessToken)
+        const innerHtml = await marked.parse(eodText)
+        const fullHtml = htmlEnvelope(innerHtml as string)
+        await sendMail(accessToken, userEmail, `End of Day — ${todayStrEod}`, fullHtml)
+        sentAt = new Date().toISOString()
+        sentTo = userEmail
+      }
+
+      return jsonResponse({ variant, brief: eodText, brief_date: briefDate, sent_to: sentTo, sent_at: sentAt })
+    }
 
     // Idempotency check
     const { data: existing } = await sb.from("ai_daily_briefs").select("id, brief_text, sent_at, generated_at").eq("brief_date", briefDate).maybeSingle()
