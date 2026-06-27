@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { SUPABASE_FUNCTIONS_URL } from '@/lib/supabase'
 import { useUserSettings, DEFAULT_SETTINGS } from './_hooks/useUserSettings'
+import { enablePush, pushStatus, type PushState } from '@/lib/push'
 
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -2516,6 +2517,24 @@ function SettingsTab({ connected, onDisconnect, settings, save, loading }: {
   const [syncing, setSyncing]           = useState(false)
   const [syncMessage, setSyncMessage]   = useState<string | null>(null)
   const [confirmDisconnect, setConfirmDisconnect] = useState(false)
+  const [pushState, setPushState] = useState<PushState>('unknown')
+  const [pushBusy, setPushBusy] = useState(false)
+  const [pushMsg, setPushMsg]   = useState<string | null>(null)
+
+  useEffect(() => { pushStatus().then(setPushState) }, [])
+
+  async function enableNotifications() {
+    setPushBusy(true)
+    setPushMsg(null)
+    const r = await enablePush()
+    if (r.ok) {
+      setPushState('subscribed')
+      setPushMsg('Notifications enabled on this device.')
+    } else {
+      setPushMsg(r.error || 'Could not enable notifications.')
+    }
+    setPushBusy(false)
+  }
 
   async function triggerVipSync() {
     setSyncing(true)
@@ -2598,6 +2617,30 @@ function SettingsTab({ connected, onDisconnect, settings, save, loading }: {
             </div>
           </div>
         </div>
+      </Card>
+
+      {/* Notifications */}
+      <Card>
+        <h3 style={{ margin: '0 0 16px', fontSize: 13, fontWeight: 600, color: '#C19131', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Notifications</h3>
+        <p style={{ margin: '0 0 14px', fontSize: 13, color: BEIGE, fontWeight: 300, lineHeight: 1.5 }}>
+          Push nudges for urgent items — follow-ups gone cold, VIP emails, stalled deals.
+          {' '}On iPhone, install this app to your home screen first (Share → Add to Home Screen).
+        </p>
+        {pushState === 'unsupported' && (
+          <p style={{ margin: 0, fontSize: 12, color: RED }}>Not supported on this browser. Open the installed app on your iPhone home screen.</p>
+        )}
+        {pushState === 'denied' && (
+          <p style={{ margin: 0, fontSize: 12, color: RED }}>Notifications are blocked. Enable them for this app in your device settings, then reload.</p>
+        )}
+        {pushState === 'subscribed' && (
+          <p style={{ margin: 0, fontSize: 13, color: '#3AAFA9' }}>✓ Notifications enabled on this device.</p>
+        )}
+        {(pushState === 'unsubscribed' || pushState === 'unknown') && (
+          <button onClick={enableNotifications} disabled={pushBusy || pushState === 'unknown'} style={{ ...primaryBtnStyle, opacity: pushBusy ? 0.6 : 1 }}>
+            {pushBusy ? 'Enabling…' : 'Enable notifications'}
+          </button>
+        )}
+        {pushMsg && <p style={{ margin: '12px 0 0', fontSize: 12, color: BEIGE }}>{pushMsg}</p>}
       </Card>
 
       {/* VIP Clients — Manual */}
