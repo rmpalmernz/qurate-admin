@@ -21,7 +21,13 @@ audit and the docs no longer described the live project.
   5 s default while the function needs 9–14 s. Three other crons have the same omission.
 - AI extraction had already stopped a week earlier: no `email_task_extraction` row in
   `api_cost_log` since 2026-07-19, while tasks kept being created from raw subjects because
-  `callAi()` fails soft.
+  `callAi()` fails soft. **Not** the API key (`morning-brief` bills against the same key daily
+  and charged as recently as 08-05) and **not** a retired model ID (`claude-haiku-4-5-20251001`
+  is the current active Haiku 4.5 snapshot). The real error only ever reached the console log.
+- The retention sweep is working correctly and is therefore draining the backlog: open tasks
+  untouched for 60 days get auto-cancelled, then deleted 30 days later. With no new tasks
+  arriving, `eisenhower_tasks` empties itself over roughly two months. No manual cleanup is
+  needed — the 484 cancelled rows are mid-hold and delete on a rolling basis.
 - `calendar_events` (364 rows, synced every 30 min) is **unreadable with the anon key** — RLS is
   on with no policy — so the dashboard's cache path never engages and every load hits Graph live.
 - PostgREST caps responses at 1000 rows with `HTTP 206`, which `res.ok` accepts. With 1,384 open
@@ -32,14 +38,14 @@ audit and the docs no longer described the live project.
 - Four deployed Edge Functions have no source in the repo: `spend-guard`, `nudge-engine`,
   `auto-handled-digest`, `send-push`. Five cron jobs were likewise undocumented.
 
-**Fixed in code (this PR):** dedup query chunked; real error messages; task pagination;
-brief/rocks/follow-ups staleness made visible; `/api/health` now checks that the task sync and
-calendar cache are actually alive.
+**Fixed in code (this PR):** dedup query chunked; real error messages; AI failures collected and
+returned instead of swallowed; task pagination; brief/rocks/follow-ups staleness made visible;
+`/api/health` now checks that the task sync, calendar cache, and AI extraction are actually alive.
 
 **Still needs an operator** (live-project changes, not applied here): raise
 `timeout_milliseconds` on the four crons that lack it; decide RLS policies for the three
-unprotected tables and for `calendar_events`; verify the `ANTHROPIC_API_KEY` secret and credit
-balance; own or retire the `Q1 2025` strategy rocks. Full detail in `docs/INFRASTRUCTURE.md`.
+unprotected tables and for `calendar_events`; own or retire the `Q1 2025` strategy rocks. Full
+detail in `docs/INFRASTRUCTURE.md`.
 
 ---
 

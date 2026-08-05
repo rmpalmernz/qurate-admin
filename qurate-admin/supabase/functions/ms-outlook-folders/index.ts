@@ -132,31 +132,59 @@ interface ConsolidationResult { group_id: number; email_index: number; task_titl
 
 interface AiCallResult { content: string | null; inputTokens: number; outputTokens: number }
 
-async function callAi(systemPrompt: string, userContent: string): Promise<AiCallResult> {
-  if (!ANTHROPIC_API_KEY) return { content: null, inputTokens: 0, outputTokens: 0 }
+// Every AI failure used to be swallowed here: a non-OK Anthropic response logged to
+// the console and returned null, and the caller quietly fell back to using the raw
+// email subject as the task title. Tasks kept appearing, so nothing looked wrong —
+// AI extraction had in fact stopped on 2026-07-19 and no cost row, response field,
+// or alert recorded it. Failures are now collected and reported in the response.
+const aiFailures: string[] = []
 
-  const aiResponse = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      max_tokens: MAX_TOKENS,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userContent }],
-    }),
-  })
+async function callAi(systemPrompt: string, userContent: string): Promise<AiCallResult> {
+  if (!ANTHROPIC_API_KEY) {
+    aiFailures.push("ANTHROPIC_API_KEY is not set")
+    return { content: null, inputTokens: 0, outputTokens: 0 }
+  }
+
+  let aiResponse: Response
+  try {
+    aiResponse = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        max_tokens: MAX_TOKENS,
+        system: systemPrompt,
+        messages: [{ role: "user", content: userContent }],
+      }),
+    })
+  } catch (err) {
+    // A throwing fetch (DNS, TLS, connection reset) was previously uncaught here and
+    // propagated out of consolidateSenderEmails, killing the whole run.
+    const detail = `Anthropic request failed: ${describeError(err)}`
+    console.error(detail)
+    aiFailures.push(detail)
+    return { content: null, inputTokens: 0, outputTokens: 0 }
+  }
 
   if (!aiResponse.ok) {
-    console.error(`Anthropic error [${aiResponse.status}]:`, await aiResponse.text())
+    const body = await aiResponse.text()
+    const detail = `Anthropic HTTP ${aiResponse.status}: ${body.slice(0, 300)}`
+    console.error(detail)
+    aiFailures.push(detail)
     return { content: null, inputTokens: 0, outputTokens: 0 }
   }
 
   const aiData = await aiResponse.json()
   const content = aiData?.content?.[0]?.text ?? null
+  if (content === null) {
+    const detail = `Anthropic returned no text content (stop_reason=${aiData?.stop_reason ?? "unknown"})`
+    console.error(detail, JSON.stringify(aiData).slice(0, 300))
+    aiFailures.push(detail)
+  }
   const inputTokens = aiData?.usage?.input_tokens ?? 0
   const outputTokens = aiData?.usage?.output_tokens ?? 0
   return { content, inputTokens, outputTokens }
@@ -498,7 +526,7 @@ Deno.serve(async (req) => {
     }
 
     // 6. Process per-sender (concurrency-limited)
-    aiInputTokensTotal = 0; aiOutputTokensTotal = 0
+    aiInputTokensTotal = 0; aiOutputTokensTotal = 0; aiFailures.length = 0
     const CONCURRENCY = 5
     const senderEntries = Array.from(senderGroups.entries())
     const allConsolidatedTasks: ConsolidatedTask[] = []
@@ -566,12 +594,18 @@ Deno.serve(async (req) => {
     // 8. Cost log (Claude Haiku 4.5)
     if (aiBatchCount > 0) await logAiCost("email_task_extraction")
 
+    // A run that created tasks but ran no AI is a silent degradation — the titles are
+    // raw email subjects, not extracted actions. Say so in the response.
+    const aiUsed = aiInputTokensTotal > 0 || aiOutputTokensTotal > 0
     return new Response(JSON.stringify({
       created: allConsolidatedTasks.length,
       emails_processed: newMessages.length,
       consolidated: consolidatedCount,
-      summary,
+      summary: aiUsed ? summary : `${summary} — WITHOUT AI: titles are raw email subjects`,
       details,
+      ai_used: aiUsed,
+      ai_failures: aiFailures.slice(0, 5),
+      ai_failure_count: aiFailures.length,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } })
   } catch (error) {
     const message = describeError(error)

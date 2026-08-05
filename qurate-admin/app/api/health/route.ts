@@ -112,6 +112,27 @@ export async function GET() {
     checks.calendar_sync = { ok: false, detail: err instanceof Error ? err.message : String(err) }
   }
 
+  // 6. AI extraction is actually running. `callAi` fails soft — a broken Anthropic call
+  //    logs to the console and falls back to using the raw email subject as the task
+  //    title, so tasks keep appearing and nothing looks wrong. The absence of a cost row
+  //    is the only external symptom, which is how this went unnoticed from 2026-07-19.
+  try {
+    const rows = await supabaseGet(
+      'api_cost_log',
+      'select=created_at&operation=eq.email_task_extraction&order=created_at.desc&limit=1'
+    ) as Array<{ created_at: string }>
+    if (rows.length === 0) {
+      checks.ai_extraction = { ok: false, detail: 'no email_task_extraction cost rows at all' }
+    } else {
+      const ageDays = (Date.now() - new Date(rows[0].created_at).getTime()) / 86_400_000
+      checks.ai_extraction = ageDays <= 7
+        ? { ok: true, detail: rows[0].created_at }
+        : { ok: false, detail: `no AI extraction billed for ${Math.floor(ageDays)}d — tasks may be raw email subjects` }
+    }
+  } catch (err) {
+    checks.ai_extraction = { ok: false, detail: err instanceof Error ? err.message : String(err) }
+  }
+
   const allOk = Object.values(checks).every(c => c.ok)
   const status = allOk ? 'ok' : 'degraded'
   const httpStatus = allOk ? 200 : 503

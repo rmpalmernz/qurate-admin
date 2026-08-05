@@ -265,13 +265,34 @@ The same one-line omission applies to `evening-brief-daily`, `sync-vips-daily` a
 ### 2. AI extraction was already failing a week before the 500s
 
 `api_cost_log` has no `email_task_extraction` row since **2026-07-19**, yet tasks kept being
-created until 07-26. `callAi()` swallows a non-OK Anthropic response — it logs and returns
-`{content: null}`, and the caller falls back to using the raw email subject as the task title.
-So there is a window of tasks created with no AI involvement at all, and whatever was wrong
-with the Anthropic call in that window is still undiagnosed. Check the `ANTHROPIC_API_KEY`
-secret and the Console's credit balance before assuming the 500 fix is sufficient.
+created until 07-26. `callAi()` swallowed a non-OK Anthropic response — it logged and returned
+`{content: null}`, and the caller fell back to using the raw email subject as the task title.
+So there is a window of tasks created with no AI involvement at all.
 
-### 3. Stale data reaching the Briefing tab
+**Two things this is *not*.** The `ANTHROPIC_API_KEY` secret is valid and funded — `morning-brief`
+and `evening-brief` bill against the same key every weekday and logged a charge as recently as
+2026-08-05. And `claude-haiku-4-5-20251001` is the current, active dated snapshot for Haiku 4.5,
+not a retired ID. Neither is the cause; don't start there.
+
+The actual error text was only ever written to the function's console log. `callAi()` now
+collects failures and returns them on the response (`ai_failures`, `ai_failure_count`), and a
+run that creates tasks without AI says so in its `summary` instead of looking like a success.
+`/api/health` gained an `ai_extraction` check on the same signal. Trigger one run after
+deploying and read `ai_failures` — that is the diagnosis.
+
+### 3. The retention sweep is quietly draining the task backlog
+
+`run_data_retention_sweep()` (pg_cron `daily_retention_sweep`, 17:00 UTC) is working exactly as
+written — and that is the problem while the sync is down. Step 2 cancels any open task untouched
+for 60 days; step 1 deletes cancelled tasks 30 days after that. With `ms-outlook-folders` dead
+since 2026-07-26, nothing refreshes a task's `updated_at`, so the existing backlog is ageing into
+auto-cancellation with no new tasks replacing it: 21 cancelled on 08-03, 9 on 08-04, 1 on 08-05,
+and **378 open tasks are already past the 30-day mark**. The 484 currently-cancelled rows are
+mid-way through their 30-day hold and will delete themselves on a rolling basis — there is no
+manual cleanup to do, but the table will empty itself over the next two months if the sync stays
+broken.
+
+### 4. Stale data reaching the Briefing tab
 
 - `strategy_rocks` — 7 rows labelled `Q1 2025`, untouched since 2026-02-21, all at 0%,
   rendered under the heading "Quarterly Rocks" with no indication of age. The tab now warns
