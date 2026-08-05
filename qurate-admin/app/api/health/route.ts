@@ -65,6 +65,53 @@ export async function GET() {
     checks.brief_sent = { ok: true, detail: 'outside expected delivery window' }
   }
 
+  // 4. Outlook → task sync is alive. pg_cron `sync-outlook-matrix` runs every 15 min, but
+  //    net.http_post reports "succeeded" the moment the request is queued — so a function
+  //    returning 500 on every run looked healthy for weeks. The only honest signal is
+  //    whether rows are actually landing.
+  try {
+    const rows = await supabaseGet(
+      'eisenhower_tasks',
+      'select=created_at&source_type=eq.email&order=created_at.desc&limit=1'
+    ) as Array<{ created_at: string }>
+    if (rows.length === 0) {
+      checks.outlook_task_sync = { ok: false, detail: 'no email-sourced tasks at all' }
+    } else {
+      const ageHours = (Date.now() - new Date(rows[0].created_at).getTime()) / 3_600_000
+      checks.outlook_task_sync = ageHours <= 48
+        ? { ok: true, detail: rows[0].created_at }
+        : { ok: false, detail: `newest email task is ${Math.floor(ageHours / 24)}d old (${rows[0].created_at})` }
+    }
+  } catch (err) {
+    checks.outlook_task_sync = { ok: false, detail: err instanceof Error ? err.message : String(err) }
+  }
+
+  // 5. Calendar cache is fresh. `sync-calendar-30min` upserts `calendar_events` every 30 min;
+  //    the dashboard falls back to a live Graph pull past 2h, so 3h is the failure threshold.
+  try {
+    const rows = await supabaseGet(
+      'calendar_events',
+      'select=synced_at&order=synced_at.desc&limit=1'
+    ) as Array<{ synced_at: string | null }>
+    const syncedAt = rows[0]?.synced_at
+    if (!syncedAt) {
+      // An empty 200 here means the anon role can't see the table (RLS is enabled with no
+      // SELECT policy), not that the cron stopped — the rows are there under service role.
+      // Either way the dashboard's cache path is dead and every load hits Graph live.
+      checks.calendar_sync = {
+        ok: false,
+        detail: 'calendar_events returned no rows to the anon key — add a SELECT policy or the dashboard cache stays dead',
+      }
+    } else {
+      const ageMin = (Date.now() - new Date(syncedAt).getTime()) / 60_000
+      checks.calendar_sync = ageMin <= 180
+        ? { ok: true, detail: syncedAt }
+        : { ok: false, detail: `calendar cache is ${Math.floor(ageMin / 60)}h stale (${syncedAt})` }
+    }
+  } catch (err) {
+    checks.calendar_sync = { ok: false, detail: err instanceof Error ? err.message : String(err) }
+  }
+
   const allOk = Object.values(checks).every(c => c.ok)
   const status = allOk ? 'ok' : 'degraded'
   const httpStatus = allOk ? 200 : 503

@@ -4,6 +4,45 @@ Records non-code changes made directly to the live Supabase project (`btzlkiwmde
 
 ---
 
+## 2026-08-06 — Re-audit: why the dashboard went stale
+
+**Why:** the app was reported as stale and unusable. Three months had passed since the last
+audit and the docs no longer described the live project.
+
+**What the audit found:**
+- `ms-outlook-folders` has returned **HTTP 500 on every 15-minute run since ~2026-07-26**.
+  `eisenhower_tasks` has taken no new row since then; 494 emails sit unprocessed in the four
+  mapped Outlook folders. Everything upstream is fine — `ms-auth` issues valid Graph tokens and
+  Graph answers normally.
+- The failure was invisible for two independent reasons. `cron.job_run_details` reports
+  `succeeded` because `net.http_post` only enqueues, and the function's catch block collapsed
+  every `PostgrestError` (a plain object, not an `Error`) into the string `"Unknown error"`.
+- Separately, `sync-outlook-matrix` never set `timeout_milliseconds`, so pg_net aborts at the
+  5 s default while the function needs 9–14 s. Three other crons have the same omission.
+- AI extraction had already stopped a week earlier: no `email_task_extraction` row in
+  `api_cost_log` since 2026-07-19, while tasks kept being created from raw subjects because
+  `callAi()` fails soft.
+- `calendar_events` (364 rows, synced every 30 min) is **unreadable with the anon key** — RLS is
+  on with no policy — so the dashboard's cache path never engages and every load hits Graph live.
+- PostgREST caps responses at 1000 rows with `HTTP 206`, which `res.ok` accepts. With 1,384 open
+  tasks the Matrix tab was silently missing 384 of them.
+- Three tables created since the last audit have **RLS disabled outright**: `retention_log`,
+  `spend_guard_state`, `function_alert_state`. The anon key can write all three, including
+  clearing the AI spend ceiling.
+- Four deployed Edge Functions have no source in the repo: `spend-guard`, `nudge-engine`,
+  `auto-handled-digest`, `send-push`. Five cron jobs were likewise undocumented.
+
+**Fixed in code (this PR):** dedup query chunked; real error messages; task pagination;
+brief/rocks/follow-ups staleness made visible; `/api/health` now checks that the task sync and
+calendar cache are actually alive.
+
+**Still needs an operator** (live-project changes, not applied here): raise
+`timeout_milliseconds` on the four crons that lack it; decide RLS policies for the three
+unprotected tables and for `calendar_events`; verify the `ANTHROPIC_API_KEY` secret and credit
+balance; own or retire the `Q1 2025` strategy rocks. Full detail in `docs/INFRASTRUCTURE.md`.
+
+---
+
 ## 2026-05-04 — Epic 3 closed: all Edge Functions in source control + Lovable fully gone
 
 **Why:** Epic 3 was 40% done after Epics 1, 2, 4, 6 landed earlier. Pulling the remaining functions tightens the safety net (full git rollback on any back-of-house change) and let me also catch two surviving Lovable callers I'd missed.

@@ -3,8 +3,7 @@
 // AI: Anthropic Claude Haiku 4.5 only. No Lovable.
 //
 // Triggers:
-//   - pg_cron 'sync-outlook-matrix' (currently PAUSED — see docs/INFRASTRUCTURE.md for the
-//     dedup-bug fix that must land before re-enabling).
+//   - pg_cron 'sync-outlook-matrix' (active, every 15 min).
 //   - Manual: ?reprocess=true (re-AI tasks already in eisenhower_tasks),
 //             ?backfill_dates=true (fill email_received_at from Graph),
 //             default = read 4 mapped folders, AI-extract tasks, insert.
@@ -76,6 +75,26 @@ For standalone emails, each gets a unique group_id. No prose around the JSON.`
 
 function getServiceClient() {
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+}
+
+// supabase-js rejects with a PostgrestError — a plain object, not an Error — so the
+// old `error instanceof Error ? error.message : "Unknown error"` collapsed every
+// database failure into the string "Unknown error". Ten days of failed cron runs
+// reported nothing else. Keep the shape-specific fields.
+function describeError(err: unknown): string {
+  if (err instanceof Error) return err.message
+  if (err && typeof err === "object") {
+    const e = err as { message?: string; code?: string; details?: string; hint?: string }
+    const parts = [
+      e.message,
+      e.code ? `code=${e.code}` : null,
+      e.details ? `details=${e.details}` : null,
+      e.hint ? `hint=${e.hint}` : null,
+    ].filter(Boolean)
+    if (parts.length > 0) return parts.join(" | ")
+    try { return JSON.stringify(err) } catch { /* fall through */ }
+  }
+  return String(err)
 }
 
 async function getAccessToken(): Promise<string> {
@@ -439,19 +458,28 @@ Deno.serve(async (req) => {
     // 4. Dedup: only fetch existing rows for the messageIds we're about to consider
     //    (NB: this uses the .in() pattern; the older fetch-all-then-filter pattern was the
     //    cause of the runaway noted in INFRASTRUCTURE.md.)
+    //
+    //    Chunked: a Graph message id is ~150 chars, so a single .in() over all 100 ids
+    //    builds a ~17 KB request line. That request is what failed on every cron run
+    //    from late July onwards — PostgREST logged 200s while the client retried and
+    //    then surfaced a transport error. 25 ids per request keeps the URL under ~4 KB.
     const messageIds = allMessages.map((m) => m.messageId)
-    const { data: existingTasks, error: queryError } = await sb
-      .from("eisenhower_tasks")
-      .select("source_email_id, source_email_ids")
-      .eq("source_type", "email")
-      .in("source_email_id", messageIds)
-    if (queryError) throw queryError
-
+    const DEDUP_CHUNK = 25
     const existingIds = new Set<string>()
-    for (const t of (existingTasks || [])) {
-      if (t.source_email_id) existingIds.add(t.source_email_id)
-      if (t.source_email_ids) {
-        for (const eid of t.source_email_ids) existingIds.add(eid)
+    for (let i = 0; i < messageIds.length; i += DEDUP_CHUNK) {
+      const chunk = messageIds.slice(i, i + DEDUP_CHUNK)
+      const { data: existingTasks, error: queryError } = await sb
+        .from("eisenhower_tasks")
+        .select("source_email_id, source_email_ids")
+        .eq("source_type", "email")
+        .in("source_email_id", chunk)
+      if (queryError) throw new Error(`dedup query failed: ${describeError(queryError)}`)
+
+      for (const t of (existingTasks || [])) {
+        if (t.source_email_id) existingIds.add(t.source_email_id)
+        if (t.source_email_ids) {
+          for (const eid of t.source_email_ids) existingIds.add(eid)
+        }
       }
     }
     const newMessages = allMessages.filter((m) => !existingIds.has(m.messageId))
@@ -527,7 +555,7 @@ Deno.serve(async (req) => {
     })
 
     const { error: insertError } = await sb.from("eisenhower_tasks").insert(rows)
-    if (insertError) throw insertError
+    if (insertError) throw new Error(`task insert failed (${rows.length} rows): ${describeError(insertError)}`)
 
     const consolidatedCount = allConsolidatedTasks.filter((t) => t.messageIds.length > 1).length
     const summaryParts = Object.entries(details)
@@ -546,8 +574,8 @@ Deno.serve(async (req) => {
       details,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } })
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error"
-    console.error("ms-outlook-folders error:", message)
+    const message = describeError(error)
+    console.error("ms-outlook-folders error:", message, error)
     return new Response(JSON.stringify({ error: message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } })
   }
