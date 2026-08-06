@@ -64,6 +64,13 @@ interface EisenhowerTask {
 const msToDate = (d: string) => new Date(/Z$|[+\-]\d{2}:\d{2}$/.test(d) ? d : d + 'Z')
 const fmt = (d: string) => msToDate(d).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })
 const fmtDate = (d: string) => msToDate(d).toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric' })
+// For bare YYYY-MM-DD keys (e.g. ai_daily_briefs.brief_date) — msToDate would append a
+// stray 'Z' and produce an Invalid Date, so parse the parts directly as a local date.
+const fmtDateKey = (key: string) => {
+  const [y, m, d] = key.split('-').map(Number)
+  if (!y || !m || !d) return key
+  return new Date(y, m - 1, d).toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric' })
+}
 const timeAgo = (d: string) => {
   const diff = Date.now() - new Date(d).getTime()
   const h = Math.floor(diff / 3600000)
@@ -241,7 +248,12 @@ type BriefSnapshot = {
 type StrategyRock = {
   id: string; rock_name: string; owner: string | null;
   status: 'on_track' | 'at_risk' | 'off_track' | string;
-  percent_complete: number | null; quarter: string | null;
+  percent_complete: number | null; quarter: string | null; updated_at?: string | null;
+}
+
+// "Q3 2026" — matches the free-text format used in strategy_rocks.quarter.
+function currentQuarterLabel(d = new Date()): string {
+  return `Q${Math.floor(d.getMonth() / 3) + 1} ${d.getFullYear()}`
 }
 
 function BriefingTab({ events, tasks, emails, vipCompanies, calendarError, tasksError }: { events: CalendarEvent[]; tasks: EisenhowerTask[]; emails: Email[]; vipCompanies: string[]; calendarError?: boolean; tasksError?: boolean }) {
@@ -251,19 +263,37 @@ function BriefingTab({ events, tasks, emails, vipCompanies, calendarError, tasks
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [rocks, setRocks] = useState<StrategyRock[]>([])
+  const [briefDate, setBriefDate] = useState<string | null>(null)
+  const [followUpCount, setFollowUpCount] = useState<number | null>(null)
 
   useEffect(() => {
-    fetch(`${SUPABASE_URL}/rest/v1/ai_daily_briefs?select=brief_text&order=created_at.desc&limit=1`, { headers: { apikey: ANON_KEY } })
+    // Pull brief_date too. Without it the tab rendered whatever the newest row happened
+    // to be — a brief from days ago read exactly like this morning's.
+    fetch(`${SUPABASE_URL}/rest/v1/ai_daily_briefs?select=brief_text,brief_date,generated_at&order=generated_at.desc&limit=1`, { headers: { apikey: ANON_KEY } })
       .then(r => r.json())
-      .then(data => { if (data?.[0]) setBrief(data[0].brief_text); setLoading(false) })
+      .then(data => {
+        if (data?.[0]) {
+          setBrief(data[0].brief_text)
+          setBriefDate(data[0].brief_date ?? (data[0].generated_at ? String(data[0].generated_at).slice(0, 10) : null))
+        }
+        setLoading(false)
+      })
       .catch(() => setLoading(false))
 
-    // Load Q1 strategy rocks (EOS framework). Limited to current quarter when one is set;
-    // falls back to all rocks otherwise. Read-only here — editing is out of scope for now.
-    fetch(`${SUPABASE_URL}/rest/v1/strategy_rocks?select=id,rock_name,owner,status,percent_complete,quarter&order=status.asc,percent_complete.desc`, { headers: { apikey: ANON_KEY } })
+    // Strategy rocks (EOS). Read-only here — editing is out of scope for now.
+    // The quarter each rock belongs to is rendered on the card so a stale set can't
+    // pass for the current quarter's.
+    fetch(`${SUPABASE_URL}/rest/v1/strategy_rocks?select=id,rock_name,owner,status,percent_complete,quarter,updated_at&order=status.asc,percent_complete.desc`, { headers: { apikey: ANON_KEY } })
       .then(r => r.ok ? r.json() : [])
       .then((data: StrategyRock[]) => Array.isArray(data) && setRocks(data))
       .catch(() => {})
+
+    // Follow-ups: this panel used to hardcode "No overdue follow-ups" regardless of the
+    // table's contents. Read the real count; null means we couldn't look.
+    fetch(`${SUPABASE_URL}/rest/v1/follow_ups?select=id`, { headers: { apikey: ANON_KEY } })
+      .then(r => r.ok ? r.json() : null)
+      .then((data: Array<{ id: string }> | null) => setFollowUpCount(Array.isArray(data) ? data.length : null))
+      .catch(() => setFollowUpCount(null))
   }, [])
 
   async function generateBrief() {
@@ -516,6 +546,14 @@ function BriefingTab({ events, tasks, emails, vipCompanies, calendarError, tasks
           <p style={{ margin: '8px 0 14px', fontSize: 14, color: BEIGE, fontWeight: 300, fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif" }}>
             {rocks.length} rock{rocks.length !== 1 ? 's' : ''} — {rocks.filter(r => r.status === 'on_track').length} on track, {rocks.filter(r => r.status === 'at_risk').length} at risk, {rocks.filter(r => r.status === 'off_track').length} off track.
           </p>
+          {/* The rocks table is edited by hand. Without this the tab presented a set from a
+              past quarter, untouched for months, as if it were this quarter's status. */}
+          {!rocks.some(r => r.quarter === currentQuarterLabel()) && (
+            <p style={{ margin: '-6px 0 14px', fontSize: 12, color: '#E67E22', fontWeight: 300, fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif" }}>
+              No rocks recorded for {currentQuarterLabel()} — showing the last recorded set
+              {rocks[0]?.updated_at ? ` (last updated ${timeAgo(rocks[0].updated_at)})` : ''}.
+            </p>
+          )}
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             {rocks.map((r, i) => {
               const statusColor = r.status === 'on_track' ? GOLD : r.status === 'at_risk' ? '#E67E22' : RED
@@ -545,10 +583,14 @@ function BriefingTab({ events, tasks, emails, vipCompanies, calendarError, tasks
       <div className="briefing-section">
         <SectionHeading color={RED}>Follow-ups Overdue</SectionHeading>
         <p style={{
-          margin: '10px 0 0', fontSize: 14, color: BEIGE, fontWeight: 300,
+          margin: '10px 0 0', fontSize: 14, color: followUpCount === null ? `${BEIGE}99` : BEIGE, fontWeight: 300,
           fontFamily: "'Helvetica Neue', 'DM Sans', system-ui, sans-serif",
         }}>
-          No overdue follow-ups. Click Refresh to check sent emails (no reply after 48h).
+          {followUpCount === null
+            ? "Couldn't read follow-ups — the count below is unknown, not zero."
+            : followUpCount === 0
+              ? 'No overdue follow-ups recorded (sent emails with no reply after 48h).'
+              : `${followUpCount} overdue follow-up${followUpCount === 1 ? '' : 's'} — sent with no reply after 48h.`}
         </p>
       </div>
 
@@ -577,6 +619,14 @@ function BriefingTab({ events, tasks, emails, vipCompanies, calendarError, tasks
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', marginBottom: 12, background: 'rgba(192,57,43,0.1)', border: '1px solid rgba(192,57,43,0.3)', borderRadius: 8 }}>
             <span style={{ color: RED, fontSize: 15, lineHeight: 1 }}>&#9888;</span>
             <span style={{ fontSize: 13, color: BEIGE }}>Couldn&apos;t generate the brief ({briefError}). Showing the last saved brief, if any.</span>
+          </div>
+        )}
+        {!loading && brief && briefDate && briefDate !== localDateKey(today) && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', marginBottom: 12, background: 'rgba(230,126,34,0.1)', border: '1px solid rgba(230,126,34,0.35)', borderRadius: 8 }}>
+            <span style={{ color: '#E67E22', fontSize: 15, lineHeight: 1 }}>&#9888;</span>
+            <span style={{ fontSize: 13, color: BEIGE }}>
+              No brief has been generated for today. Showing the brief for {fmtDateKey(briefDate)}.
+            </span>
           </div>
         )}
         {loading ? <Spinner /> : brief ? (
@@ -2554,10 +2604,26 @@ export default function Dashboard() {
   const loadTasks = useCallback(async () => {
     setLoadErrors(e => ({ ...e, tasks: undefined }))
     try {
-      const res  = await fetch(`${SUPABASE_URL}/rest/v1/eisenhower_tasks?select=*&status=neq.done&order=created_at.desc`, { headers: { apikey: ANON_KEY } })
-      if (!res.ok) throw new Error(`Supabase ${res.status}`)
-      const data = await res.json()
-      if (Array.isArray(data)) setTasks(data)
+      // PostgREST caps a response at 1000 rows and answers 206 Partial Content — which is
+      // still `res.ok`. With 1384 open tasks that silently dropped the oldest 384 from the
+      // Matrix tab with no error anywhere. Page explicitly until the range is exhausted.
+      const PAGE = 1000
+      const MAX_PAGES = 10
+      const all: EisenhowerTask[] = []
+      for (let page = 0; page < MAX_PAGES; page++) {
+        const from = page * PAGE
+        const to   = from + PAGE - 1
+        const res  = await fetch(
+          `${SUPABASE_URL}/rest/v1/eisenhower_tasks?select=*&status=neq.done&order=created_at.desc`,
+          { headers: { apikey: ANON_KEY, Range: `${from}-${to}`, 'Range-Unit': 'items' } }
+        )
+        if (!res.ok) throw new Error(`Supabase ${res.status}`)
+        const data = await res.json()
+        if (!Array.isArray(data)) break
+        all.push(...data)
+        if (data.length < PAGE) break
+      }
+      setTasks(all)
     } catch (e) {
       console.error('Tasks load error:', e)
       setLoadErrors(prev => ({ ...prev, tasks: e instanceof Error ? e.message : 'load failed' }))

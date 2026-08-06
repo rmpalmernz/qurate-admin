@@ -3,8 +3,7 @@
 // AI: Anthropic Claude Haiku 4.5 only. No Lovable.
 //
 // Triggers:
-//   - pg_cron 'sync-outlook-matrix' (currently PAUSED — see docs/INFRASTRUCTURE.md for the
-//     dedup-bug fix that must land before re-enabling).
+//   - pg_cron 'sync-outlook-matrix' (active, every 15 min).
 //   - Manual: ?reprocess=true (re-AI tasks already in eisenhower_tasks),
 //             ?backfill_dates=true (fill email_received_at from Graph),
 //             default = read 4 mapped folders, AI-extract tasks, insert.
@@ -78,6 +77,26 @@ function getServiceClient() {
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 }
 
+// supabase-js rejects with a PostgrestError — a plain object, not an Error — so the
+// old `error instanceof Error ? error.message : "Unknown error"` collapsed every
+// database failure into the string "Unknown error". Ten days of failed cron runs
+// reported nothing else. Keep the shape-specific fields.
+function describeError(err: unknown): string {
+  if (err instanceof Error) return err.message
+  if (err && typeof err === "object") {
+    const e = err as { message?: string; code?: string; details?: string; hint?: string }
+    const parts = [
+      e.message,
+      e.code ? `code=${e.code}` : null,
+      e.details ? `details=${e.details}` : null,
+      e.hint ? `hint=${e.hint}` : null,
+    ].filter(Boolean)
+    if (parts.length > 0) return parts.join(" | ")
+    try { return JSON.stringify(err) } catch { /* fall through */ }
+  }
+  return String(err)
+}
+
 async function getAccessToken(): Promise<string> {
   const sb = getServiceClient()
   const { data, error } = await sb.functions.invoke("ms-auth", { method: "GET" })
@@ -113,31 +132,59 @@ interface ConsolidationResult { group_id: number; email_index: number; task_titl
 
 interface AiCallResult { content: string | null; inputTokens: number; outputTokens: number }
 
-async function callAi(systemPrompt: string, userContent: string): Promise<AiCallResult> {
-  if (!ANTHROPIC_API_KEY) return { content: null, inputTokens: 0, outputTokens: 0 }
+// Every AI failure used to be swallowed here: a non-OK Anthropic response logged to
+// the console and returned null, and the caller quietly fell back to using the raw
+// email subject as the task title. Tasks kept appearing, so nothing looked wrong —
+// AI extraction had in fact stopped on 2026-07-19 and no cost row, response field,
+// or alert recorded it. Failures are now collected and reported in the response.
+const aiFailures: string[] = []
 
-  const aiResponse = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      max_tokens: MAX_TOKENS,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userContent }],
-    }),
-  })
+async function callAi(systemPrompt: string, userContent: string): Promise<AiCallResult> {
+  if (!ANTHROPIC_API_KEY) {
+    aiFailures.push("ANTHROPIC_API_KEY is not set")
+    return { content: null, inputTokens: 0, outputTokens: 0 }
+  }
+
+  let aiResponse: Response
+  try {
+    aiResponse = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        max_tokens: MAX_TOKENS,
+        system: systemPrompt,
+        messages: [{ role: "user", content: userContent }],
+      }),
+    })
+  } catch (err) {
+    // A throwing fetch (DNS, TLS, connection reset) was previously uncaught here and
+    // propagated out of consolidateSenderEmails, killing the whole run.
+    const detail = `Anthropic request failed: ${describeError(err)}`
+    console.error(detail)
+    aiFailures.push(detail)
+    return { content: null, inputTokens: 0, outputTokens: 0 }
+  }
 
   if (!aiResponse.ok) {
-    console.error(`Anthropic error [${aiResponse.status}]:`, await aiResponse.text())
+    const body = await aiResponse.text()
+    const detail = `Anthropic HTTP ${aiResponse.status}: ${body.slice(0, 300)}`
+    console.error(detail)
+    aiFailures.push(detail)
     return { content: null, inputTokens: 0, outputTokens: 0 }
   }
 
   const aiData = await aiResponse.json()
   const content = aiData?.content?.[0]?.text ?? null
+  if (content === null) {
+    const detail = `Anthropic returned no text content (stop_reason=${aiData?.stop_reason ?? "unknown"})`
+    console.error(detail, JSON.stringify(aiData).slice(0, 300))
+    aiFailures.push(detail)
+  }
   const inputTokens = aiData?.usage?.input_tokens ?? 0
   const outputTokens = aiData?.usage?.output_tokens ?? 0
   return { content, inputTokens, outputTokens }
@@ -439,19 +486,28 @@ Deno.serve(async (req) => {
     // 4. Dedup: only fetch existing rows for the messageIds we're about to consider
     //    (NB: this uses the .in() pattern; the older fetch-all-then-filter pattern was the
     //    cause of the runaway noted in INFRASTRUCTURE.md.)
+    //
+    //    Chunked: a Graph message id is ~150 chars, so a single .in() over all 100 ids
+    //    builds a ~17 KB request line. That request is what failed on every cron run
+    //    from late July onwards — PostgREST logged 200s while the client retried and
+    //    then surfaced a transport error. 25 ids per request keeps the URL under ~4 KB.
     const messageIds = allMessages.map((m) => m.messageId)
-    const { data: existingTasks, error: queryError } = await sb
-      .from("eisenhower_tasks")
-      .select("source_email_id, source_email_ids")
-      .eq("source_type", "email")
-      .in("source_email_id", messageIds)
-    if (queryError) throw queryError
-
+    const DEDUP_CHUNK = 25
     const existingIds = new Set<string>()
-    for (const t of (existingTasks || [])) {
-      if (t.source_email_id) existingIds.add(t.source_email_id)
-      if (t.source_email_ids) {
-        for (const eid of t.source_email_ids) existingIds.add(eid)
+    for (let i = 0; i < messageIds.length; i += DEDUP_CHUNK) {
+      const chunk = messageIds.slice(i, i + DEDUP_CHUNK)
+      const { data: existingTasks, error: queryError } = await sb
+        .from("eisenhower_tasks")
+        .select("source_email_id, source_email_ids")
+        .eq("source_type", "email")
+        .in("source_email_id", chunk)
+      if (queryError) throw new Error(`dedup query failed: ${describeError(queryError)}`)
+
+      for (const t of (existingTasks || [])) {
+        if (t.source_email_id) existingIds.add(t.source_email_id)
+        if (t.source_email_ids) {
+          for (const eid of t.source_email_ids) existingIds.add(eid)
+        }
       }
     }
     const newMessages = allMessages.filter((m) => !existingIds.has(m.messageId))
@@ -470,7 +526,7 @@ Deno.serve(async (req) => {
     }
 
     // 6. Process per-sender (concurrency-limited)
-    aiInputTokensTotal = 0; aiOutputTokensTotal = 0
+    aiInputTokensTotal = 0; aiOutputTokensTotal = 0; aiFailures.length = 0
     const CONCURRENCY = 5
     const senderEntries = Array.from(senderGroups.entries())
     const allConsolidatedTasks: ConsolidatedTask[] = []
@@ -527,7 +583,7 @@ Deno.serve(async (req) => {
     })
 
     const { error: insertError } = await sb.from("eisenhower_tasks").insert(rows)
-    if (insertError) throw insertError
+    if (insertError) throw new Error(`task insert failed (${rows.length} rows): ${describeError(insertError)}`)
 
     const consolidatedCount = allConsolidatedTasks.filter((t) => t.messageIds.length > 1).length
     const summaryParts = Object.entries(details)
@@ -538,16 +594,22 @@ Deno.serve(async (req) => {
     // 8. Cost log (Claude Haiku 4.5)
     if (aiBatchCount > 0) await logAiCost("email_task_extraction")
 
+    // A run that created tasks but ran no AI is a silent degradation — the titles are
+    // raw email subjects, not extracted actions. Say so in the response.
+    const aiUsed = aiInputTokensTotal > 0 || aiOutputTokensTotal > 0
     return new Response(JSON.stringify({
       created: allConsolidatedTasks.length,
       emails_processed: newMessages.length,
       consolidated: consolidatedCount,
-      summary,
+      summary: aiUsed ? summary : `${summary} — WITHOUT AI: titles are raw email subjects`,
       details,
+      ai_used: aiUsed,
+      ai_failures: aiFailures.slice(0, 5),
+      ai_failure_count: aiFailures.length,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } })
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error"
-    console.error("ms-outlook-folders error:", message)
+    const message = describeError(error)
+    console.error("ms-outlook-folders error:", message, error)
     return new Response(JSON.stringify({ error: message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } })
   }
