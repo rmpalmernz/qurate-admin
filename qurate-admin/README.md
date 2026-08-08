@@ -1,4 +1,10 @@
-# Qurate Admin Agent
+# Qurate Admin Agent — RETIRED
+
+> **This is the v1 app. It was retired at the v1 teardown on 2026-08-08 and this
+> repository is kept read-only for provenance.** The product is now **Chief of
+> Staff** — repo `qurate-advisory/qurate-chiefofstaff`, canon and teardown record
+> there (`canon/02-master-pack.md` §G, `CLEANUP.md`). Its legacy crons are
+> unscheduled and its edge functions tombstoned (HTTP 410); nothing here runs.
 
 An AI-powered executive administration dashboard for business professionals and M&A advisory. Consolidates email, calendar, task management, and AI reasoning into a single mobile-first Progressive Web App backed by Microsoft 365 and Claude AI.
 
